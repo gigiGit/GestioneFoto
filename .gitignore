@@ -1,0 +1,48 @@
+# Runtime database files and backups
+/config/backup/
+/config/analisi_foto.csv
+/config/analisi_*.csv
+/config/analisi_foto.db-shm
+/config/analisi_foto.db-wal
+/db/
+
+# Temporary test/output folders
+/_tmp_dest/
+/_tmp_dest_synthetic/
+/_tmp_dest_totalcheck/
+
+# Logs
+*.log
+
+# Build output and .NET intermediate files
+**/bin/
+**/obj/
+/artifacts/
+/publish/
+/GestioneFoto-*.msi
+/msi_build_log.txt
+
+# Tools installed separately (winget)
+/lib/pandoc/pandoc.exe
+/lib/sqlite3.exe
+
+# IDE/editor temporary folders
+.vs/
+.idea/
+.vscode/
+
+# Test and coverage artifacts
+TestResults/
+coverage/
+
+# Generic temporary/cache folders
+tmp/
+temp/
+.temp/
+.cache/
+
+# Transient files
+*.tmp
+*.temp
+*.bak
+*.swp

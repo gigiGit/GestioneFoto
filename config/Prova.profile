@@ -1,0 +1,9 @@
+﻿ProfileName=Prova
+MinSize=1024
+UserName=prova
+IncludePath=D:\Mediabackup\Patty
+ExcludePaths=
+Extensions=jpg,jpeg,png,gif,bmp,tif,tiff,webp,mp4,avi,mov,mkv,wmv,flv,webm,m4v,3gp,mpg,mpeg,nef,m2ts
+DestinationRoot=D:\Mediabackup\giuliano.giusti\backup
+DatabasePath=D:\GestioneFoto\config\analisi_foto.db
+DestinationTemplate=YYYY/MM/DD

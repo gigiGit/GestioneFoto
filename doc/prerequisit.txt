@@ -1,0 +1,38 @@
+Inizializzazione ambiente di sviluppo (Windows):
+powershell -ExecutionPolicy Bypass -File .\setup\Inizializza-Progetto.ps1
+
+Lo script installa tramite winget .NET SDK 8, Pandoc e il CLI SQLite; installa
+WiX come tool globale .NET e ripristina i pacchetti NuGet del progetto.
+Prerequisiti: Windows, PowerShell, winget (App Installer) e accesso a Internet.
+
+Se gli strumenti sono gia' installati:
+powershell -ExecutionPolicy Bypass -File .\setup\Inizializza-Progetto.ps1 -SkipInstall
+
+Output di compilazione, cartelle bin/obj, MSI e copie locali di Pandoc/sqlite3
+sono esclusi da Git e vengono ricreati o reinstallati dalla procedura.
+
+Build release self-contained (nessuna dipendenza SDK sul PC finale):
+dotnet publish .\src\GestioneFoto.App\GestioneFoto.App.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
+
+Build pacchetto MSI (installer Windows):
+powershell -ExecutionPolicy Bypass -File .\setup\Build-AppAndMsi.ps1 -Version 1.0.0
+
+Pipeline CI (GitHub Actions):
+- Workflow: .github/workflows/build-msi.yml
+- Esecuzione manuale da tab Actions: "Build MSI" (workflow_dispatch)
+- Artifact prodotti: cartella publish win-x64 e file .msi
+
+Setup iniziale su PC nuovo (anche senza Microsoft.DotNet.SDK.8):
+1) Copia la cartella progetto/distribuzione sul PC di destinazione.
+2) Esegui setup\Setup-Iniziale.cmd
+
+La procedura guidata aiuta l'utente con domande passo-passo e crea il collegamento Desktop
+con icona dell'app (se disponibile).
+
+Opzioni utili script PowerShell:
+- Installare anche SDK 8 (opzionale):
+	powershell -ExecutionPolicy Bypass -File .\setup\Setup-Iniziale.ps1 -InstallDotNetSdk
+- Specificare exe pubblicato:
+	powershell -ExecutionPolicy Bypass -File .\setup\Setup-Iniziale.ps1 -AppExePath "C:\Percorso\GestioneFoto.App.exe"
+- Esecuzione non interattiva (senza domande):
+	powershell -ExecutionPolicy Bypass -File .\setup\Setup-Iniziale.ps1 -NonInteractive

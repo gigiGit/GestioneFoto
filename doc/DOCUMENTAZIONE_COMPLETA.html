@@ -1,0 +1,57 @@
+<h1 id="documentazione-completa---gestionefoto.ps1">Documentazione
+Completa - GestioneFoto.ps1</h1>
+<h2 id="obiettivo">1. Obiettivo</h2>
+<p>GestioneFoto.ps1 fornisce una GUI per la gestione di foto/video in
+ambiente Windows PowerShell, con queste funzionalità reali:</p>
+<ul>
+<li>Caricamento configurazione e profilo (cartelle, estensioni, filtri,
+destinazione, database)</li>
+<li>Interfaccia grafica con selettore profilo, parametri configurabili,
+log, barra di avanzamento</li>
+<li>Flusso operativo: Scansione, Visualizza, Copia, Esci</li>
+<li>Logging dettagliato e feedback visivo</li>
+</ul>
+<h2 id="architettura">2. Architettura</h2>
+<ul>
+<li>Entry point: <code>GestioneFoto.ps1</code> (GUI WinForms
+principale)</li>
+<li>Moduli caricati: <code>lib/log.ps1</code>,
+<code>lib/config.ps1</code>, <code>lib/wrapper.ps1</code>,
+<code>lib/gui.ps1</code></li>
+</ul>
+<h2 id="configurazione">3. Configurazione</h2>
+<ul>
+<li>Configurazione generale: <code>config/config.properties</code></li>
+<li>Profili: <code>config/&lt;nome&gt;.profile</code></li>
+</ul>
+<p>Chiavi profilo usate dalla GUI: - <code>ProfileName</code>,
+<code>MinSize</code>, <code>UserName</code>, <code>IncludePath</code>,
+<code>ExcludePaths</code>, <code>Extensions</code>,
+<code>DestinationRoot</code>, <code>DatabasePath</code>,
+<code>DestinationTemplate</code></p>
+<h2 id="funzionalità-gui-implementate">4. Funzionalità GUI
+implementate</h2>
+<ul>
+<li>Selettore profilo e parametri modificabili</li>
+<li>Pulsanti: Scansione (aggiorna database), Visualizza (mostra elenco e
+stato file), Copia (copia solo file “Copiabile”), Esci</li>
+<li>Log attività e messaggi di stato</li>
+<li>Barra di avanzamento per operazioni lunghe</li>
+</ul>
+<h2 id="flusso-operativo-reale">5. Flusso operativo reale</h2>
+<ol type="1">
+<li>Avviare la GUI con <code>./GestioneFoto.ps1</code></li>
+<li>Selezionare o creare un profilo</li>
+<li>Premere <code>Scansione</code> per aggiornare il database con i
+nuovi file trovati</li>
+<li>Premere <code>Visualizza</code> per vedere l’elenco e lo stato dei
+file</li>
+<li>Premere <code>Copia</code> per copiare solo i file marcati come
+“Copiabile” nella cartella di destinazione</li>
+<li>Premere <code>Esci</code> per chiudere il programma</li>
+</ol>
+<h2 id="note-operative">6. Note operative</h2>
+<ul>
+<li>Tutte le operazioni mostrano log e avanzamento nella GUI</li>
+<li>Target: Windows PowerShell + WinForms</li>
+</ul>

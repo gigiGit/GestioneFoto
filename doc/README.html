@@ -1,0 +1,66 @@
+<h1 id="gestionefoto.ps1">GestioneFoto.ps1</h1>
+<p><strong>GestioneFoto.ps1</strong> avvia la GUI principale per la
+gestione di foto/video tramite PowerShell e WinForms.</p>
+<h2 id="funzionalità-principali">Funzionalità principali</h2>
+<ol type="1">
+<li><strong>Caricamento configurazione e profilo</strong>
+<ul>
+<li>Legge la configurazione da <code>config/config.properties</code> e
+dal profilo selezionato (<code>config/&lt;nome&gt;.profile</code>).</li>
+<li>Imposta parametri di lavoro: cartelle, estensioni, filtri,
+destinazione, database.</li>
+</ul></li>
+<li><strong>Interfaccia grafica (GUI)</strong>
+<ul>
+<li>Selettore profilo e parametri configurabili.</li>
+<li>Pulsanti: Scansione, Visualizza, Copia, Esci.</li>
+<li>Log attività e messaggi di stato.</li>
+<li>Barra di avanzamento (progress bar) per le operazioni lunghe.</li>
+</ul></li>
+<li><strong>Flusso operativo</strong>
+<ul>
+<li><strong>Scansione:</strong> Analizza le cartelle sorgenti, filtra i
+file secondo i parametri del profilo, aggiorna il database SQLite con i
+nuovi file trovati (senza duplicati).</li>
+<li><strong>Visualizza:</strong> Mostra l’elenco dei file trovati e lo
+stato di ciascun record nel database.</li>
+<li><strong>Copia:</strong> Copia fisicamente solo i file marcati come
+“Copiabile” dal database nella cartella di destinazione, aggiornando lo
+stato a “Copiato”.</li>
+<li><strong>Esci:</strong> Chiude l’applicazione.</li>
+</ul></li>
+<li><strong>Logging e feedback</strong>
+<ul>
+<li>Tutte le operazioni scrivono log dettagliati nella GUI.</li>
+<li>La progress bar e le etichette di stato mostrano l’avanzamento delle
+operazioni.</li>
+</ul></li>
+</ol>
+<h2 id="avvio-rapido">Avvio rapido</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="op">./</span>GestioneFoto<span class="op">.</span><span class="fu">ps1</span></span></code></pre></div>
+<h2 id="requisiti">Requisiti</h2>
+<ul>
+<li>Windows PowerShell 5.1+</li>
+<li>Moduli e librerie nella cartella <code>lib/</code></li>
+</ul>
+<h2 id="documentazione">Documentazione</h2>
+<ul>
+<li>Panoramica tecnica completa: <a
+href="DOCUMENTAZIONE_COMPLETA.md">DOCUMENTAZIONE_COMPLETA.md</a></li>
+<li>Guida rapida operativa: <a
+href="GUIDA_UTENTE_BREVE.md">GUIDA_UTENTE_BREVE.md</a></li>
+</ul>
+<h2 id="documentazione-1">Documentazione</h2>
+<ul>
+<li>Panoramica tecnica completa: <a
+href="DOCUMENTAZIONE_COMPLETA.md">DOCUMENTAZIONE_COMPLETA.md</a></li>
+<li>Guida rapida operativa: <a
+href="GUIDA_UTENTE_BREVE.md">GUIDA_UTENTE_BREVE.md</a></li>
+<li>Stato implementazione e roadmap: <a
+href="TODO-2.md">TODO-2.md</a></li>
+</ul>
+<h2 id="note">Note</h2>
+<ul>
+<li>Target: Windows PowerShell + WinForms.</li>
+</ul>

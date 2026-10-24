@@ -1,0 +1,10 @@
+ProfileName=Patty
+MinSize=2048
+UserName=Patty
+IncludePath=M:\
+ExcludePaths=M:\film,M:\mp3,M:\backup 01 10 2018\musica,M:\backup 02 10 2018\file vari 2\Downloads,M:\backup 01 10 2018\pat,M:\fabio  temp
+Extensions=jpg,jpeg,png,gif,bmp,tif,tiff,webp,mp4,avi,mov,mkv,wmv,flv,webm,m4v,3gp,mpg,mpeg,nef,m2ts
+DestinationRoot=J:\Mediabackup\Patty\backup
+DatabasePath=J:\Mediabackup\Patty\GestioneFoto.db
+DestinationTemplate=YYYY/MM/DD
+AlbumDestination=J:\Mediabackup\Patty\Album

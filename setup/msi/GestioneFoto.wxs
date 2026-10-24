@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="GestioneFoto"
+    Manufacturer="GestioneFoto"
+    Version="$(var.AppVersion)"
+    UpgradeCode="6D60F305-6A59-4C22-9A4C-81B9B9747D61"
+    Scope="perMachine">
+
+    <MajorUpgrade
+      DowngradeErrorMessage="Una versione piu recente di GestioneFoto e gia installata." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="GestioneFoto">
+        <Directory Id="ConfigFolder" Name="config" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="MainFeature" Title="GestioneFoto" Level="1">
+      <ComponentGroupRef Id="AppPayload" />
+      <ComponentGroupRef Id="ConfigPayload" />
+      <ComponentRef Id="DesktopShortcutComponent" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppPayload" Directory="INSTALLFOLDER">
+      <Files Include="!(bindpath.PublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ConfigPayload" Directory="ConfigFolder">
+      <Files Include="!(bindpath.ConfigDir)\*.profile" />
+      <Files Include="!(bindpath.ConfigDir)\*.properties" />
+      <Files Include="!(bindpath.ConfigDir)\filename-date-patterns.txt" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="0E2E4E1D-8DCA-4F2D-B6AC-083EF2429138">
+        <Shortcut
+          Id="DesktopShortcut"
+          Name="GestioneFoto"
+          Description="GestioneFoto.App"
+          Target="[INSTALLFOLDER]GestioneFoto.App.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="AppIcon" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\GestioneFoto"
+          Name="DesktopShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

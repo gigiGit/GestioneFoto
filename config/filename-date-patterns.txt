@@ -1,0 +1,19 @@
+# Pattern regex per estrarre data/ora dal nome file.
+# Ogni riga non vuota (e non commentata) e' un regex.
+# Gruppi richiesti: y, m, d
+# Gruppi opzionali: hh, mm, ss
+#
+# Esempio pratico richiesto:
+# VID-20200527-WA0000.mp4 -> 2020-05-27
+
+# 20200527_183045 oppure 20200527-183045
+(?<!\d)(?<y>\d{4})(?<m>\d{2})(?<d>\d{2})[ _\-]?(?<hh>\d{2})(?<mm>\d{2})(?<ss>\d{2})(?!\d)
+
+# 2020-05-27 18-30-45, 2020_05_27T18:30, 2020.05.27-18.30.45
+(?<!\d)(?<y>\d{4})[-_\.](?<m>\d{2})[-_\.](?<d>\d{2})[ T_\-](?<hh>\d{2})[:\-\._](?<mm>\d{2})(?:[:\-\._](?<ss>\d{2}))?(?!\d)
+
+# VID-20200527-WA0000, IMG_20240531
+(?<!\d)(?<y>\d{4})(?<m>\d{2})(?<d>\d{2})(?!\d)
+
+# 2020-05-27, 2020_05_27
+(?<!\d)(?<y>\d{4})[-_\.](?<m>\d{2})[-_\.](?<d>\d{2})(?!\d)
