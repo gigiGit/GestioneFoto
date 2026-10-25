@@ -1,0 +1,13 @@
+# Configurazione per cercafoto.ps1
+# Dimensione minima del file in byte (file più piccoli vengono scartati)
+MinSize=1024
+
+
+# Excluded folders
+C:\Windows
+C:\Program Files
+C:\Program Files (x86)
+C:\Users\Default
+C:\tmp
+C:\temp
+F:\Biblioteca
