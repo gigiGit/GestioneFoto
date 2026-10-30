@@ -83,6 +83,7 @@ $publishArgs = @(
     "-r", $Runtime,
     "--self-contained", $selfContainedValue,
     "/p:PublishSingleFile=$publishSingleFileValue",
+    "/p:IncludeNativeLibrariesForSelfExtract=$publishSingleFileValue",
     "/p:DisableImplicitNuGetFallbackFolder=true"
 )
 
@@ -92,6 +93,20 @@ Invoke-Checked -FileName "dotnet" -Arguments $publishArgs -ErrorMessage "Publish
 if (-not (Test-Path -LiteralPath $publishPath)) {
     throw "Cartella publish non trovata dopo il publish: $publishPath"
 }
+
+$exePath = Join-Path $publishPath "GestioneFoto.App.exe"
+if (-not (Test-Path -LiteralPath $exePath)) {
+    throw "Eseguibile non trovato dopo il publish: $exePath"
+}
+
+$binPath = Join-Path $repoRoot "bin"
+if (-not (Test-Path -LiteralPath $binPath)) {
+    New-Item -Path $binPath -ItemType Directory | Out-Null
+}
+
+Get-ChildItem -LiteralPath $publishPath -Force |
+    Copy-Item -Destination $binPath -Recurse -Force
+Write-Step "File di publish copiati in bin: $binPath"
 
 Write-Step "Avvio generazione MSI versione $Version"
 & $buildMsiScript `

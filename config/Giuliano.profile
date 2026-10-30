@@ -1,10 +1,10 @@
-ProfileName=Giuliano
+ProfileName=Giuliano_ok
 MinSize=1024
 UserName=giuliano.giusti
-IncludePath=E:\Photo
+IncludePath=F:\Photo
 ExcludePaths=
 Extensions=jpg,jpeg,png,gif,bmp,tif,tiff,webp,mp4,avi,mov,mkv,wmv,flv,webm,m4v,3gp,mpg,mpeg,nef,m2ts
-DestinationRoot=E:\MediaBackup\Giuliano_ok\DESKTOP-5BRNMGV\backup
-DatabasePath=E:\MediaBackup\Giuliano_ok\analisi_foto.db
+DestinationRoot=F:\MediaBackup\Giuliano_ok\backup
+DatabasePath=F:\GestioneFoto\config\analisi_foto.db
 DestinationTemplate=YYYY/MM/DD
-AlbumDestination=E:\MediaBackup\Giuliano_ok\DESKTOP-5BRNMGV\Album
+AlbumDestination=F:\MediaBackup\Giuliano_ok\Album

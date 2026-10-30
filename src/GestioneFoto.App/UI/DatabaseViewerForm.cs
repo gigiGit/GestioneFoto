@@ -20,6 +20,8 @@ public sealed class DatabaseViewerForm : Form
     private readonly CheckBox _chkUseDate;
     private readonly TextBox _txtNameFilter;
     private readonly Button _btnClearFilters;
+    private readonly Button _btnDuplicatesOnly;
+    private readonly Button _btnAlignDuplicateDates;
     private readonly Button _btnEditDate;
     private readonly Button _btnEditAlbum;
     private readonly PictureBox _previewBox;
@@ -44,6 +46,7 @@ public sealed class DatabaseViewerForm : Form
 
     private readonly DataTable _rowsTable = new("SourceRows");
     private readonly DataView _rowsView;
+    private bool _showDuplicatesOnly;
 
     public DatabaseViewerForm(ProfileConfig profile)
     {
@@ -124,6 +127,12 @@ public sealed class DatabaseViewerForm : Form
         _btnClearFilters = new Button { Width = 90, Height = 26, Text = "Pulisci" };
         filterPanel.Controls.Add(CreateButtonHost(_btnClearFilters, 100));
 
+        _btnDuplicatesOnly = new Button { Width = 130, Height = 26, Text = "Solo duplicati" };
+        filterPanel.Controls.Add(CreateButtonHost(_btnDuplicatesOnly, 140));
+
+        _btnAlignDuplicateDates = new Button { Width = 180, Height = 26, Text = "Allinea date duplicati", Enabled = false };
+        filterPanel.Controls.Add(CreateButtonHost(_btnAlignDuplicateDates, 190));
+
         _btnEditDate = new Button { Width = 140, Height = 26, Text = "Modifica Data" };
         filterPanel.Controls.Add(CreateButtonHost(_btnEditDate, 150));
 
@@ -178,7 +187,11 @@ public sealed class DatabaseViewerForm : Form
         });
 
         _grid.DataSource = _rowsView;
-        _grid.SelectionChanged += (_, _) => UpdateDetailsForSelection();
+        _grid.SelectionChanged += (_, _) =>
+        {
+            UpdateDetailsForSelection();
+            UpdateDuplicateDateButtonState();
+        };
         leftPanel.Controls.Add(_grid, 0, 1);
 
         _cmbTypeFilter.SelectedIndexChanged += (_, _) => ApplyFilters();
@@ -188,6 +201,13 @@ public sealed class DatabaseViewerForm : Form
         _dtTo.ValueChanged += (_, _) => ApplyFilters();
         _txtNameFilter.TextChanged += (_, _) => ApplyFilters();
         _btnClearFilters.Click += (_, _) => ClearFilters();
+        _btnDuplicatesOnly.Click += (_, _) =>
+        {
+            _showDuplicatesOnly = !_showDuplicatesOnly;
+            _btnDuplicatesOnly.Text = _showDuplicatesOnly ? "Mostra tutti" : "Solo duplicati";
+            ApplyFilters();
+        };
+        _btnAlignDuplicateDates.Click += async (_, _) => await AlignSelectedDuplicateDatesAsync();
         _btnEditDate.Click += async (_, _) => await EditSelectedAcquisitionDateAsync();
         _btnEditAlbum.Click += async (_, _) => await EditSelectedAlbumAsync();
 
@@ -352,6 +372,7 @@ public sealed class DatabaseViewerForm : Form
         _rowsTable.Columns.Add("DtFile", typeof(string));
         _rowsTable.Columns.Add("AcqDateDb", typeof(string));
         _rowsTable.Columns.Add("AcqDateKey", typeof(string));
+        _rowsTable.Columns.Add("IsDuplicate", typeof(bool));
     }
 
     private async Task LoadRowsAsync()
@@ -368,6 +389,13 @@ public sealed class DatabaseViewerForm : Form
             }
 
             var loadedRows = await Task.Run(ReadRowsFromDb);
+            var duplicateHashes = loadedRows
+                .Where(row => !string.IsNullOrWhiteSpace(row.Hash))
+                .GroupBy(row => row.Hash, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             foreach (var row in loadedRows)
             {
                 _rowsTable.Rows.Add(
@@ -382,17 +410,30 @@ public sealed class DatabaseViewerForm : Form
                     row.DtFileName ?? string.Empty,
                     row.DtFile ?? string.Empty,
                     row.AcqDateDb ?? string.Empty,
-                    BuildAcqDateKey(row.AcqDateDb));
+                    BuildAcqDateKey(row.AcqDateDb),
+                    duplicateHashes.Contains(row.Hash));
             }
 
             RefreshAlbumFilterValues();
             ApplyFilters();
+            UpdateDuplicateDateButtonState();
 
             if (_grid.Rows.Count > 0)
             {
                 _grid.ClearSelection();
                 _grid.Rows[0].Selected = true;
             }
+        }
+        catch (InvalidDataException ex)
+        {
+            _lblStatus.Text = ex.Message;
+            MessageBox.Show(this, ex.Message, "Database non valido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (SqliteException ex)
+        {
+            var message = $"Errore durante la lettura del database '{_profile.DatabasePath}': {ex.Message}";
+            _lblStatus.Text = message;
+            MessageBox.Show(this, message, "Errore database", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -404,6 +445,33 @@ public sealed class DatabaseViewerForm : Form
     {
         using var conn = new SqliteConnection($"Data Source={_profile.DatabasePath}");
         conn.Open();
+
+        var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var schemaCommand = conn.CreateCommand())
+        {
+            schemaCommand.CommandText = """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name IN ('SRC', 'HASH');
+                """;
+
+            using var schemaReader = schemaCommand.ExecuteReader();
+            while (schemaReader.Read())
+            {
+                existingTables.Add(schemaReader.GetString(0));
+            }
+        }
+
+        var missingTables = new[] { "SRC", "HASH" }
+            .Where(table => !existingTables.Contains(table))
+            .ToArray();
+        if (missingTables.Length > 0)
+        {
+            throw new InvalidDataException(
+                $"Il database '{_profile.DatabasePath}' non contiene le tabelle richieste: {string.Join(", ", missingTables)}. " +
+                "Verifica il DatabasePath del profilo oppure esegui una scansione per inizializzare il database.");
+        }
 
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
@@ -461,6 +529,8 @@ public sealed class DatabaseViewerForm : Form
         _chkUseDate.Enabled = !isLoading;
         _txtNameFilter.Enabled = !isLoading;
         _btnClearFilters.Enabled = !isLoading;
+        _btnDuplicatesOnly.Enabled = !isLoading;
+        _btnAlignDuplicateDates.Enabled = !isLoading && HasValidDuplicateDateSelection();
         _btnEditDate.Enabled = !isLoading;
         _btnEditAlbum.Enabled = !isLoading;
         _btnClearFilters.Refresh();
@@ -496,7 +566,8 @@ public sealed class DatabaseViewerForm : Form
             DtExif = row.Field<string>("DtExif"),
             DtFileName = row.Field<string>("DtFileName"),
             DtFile = row.Field<string>("DtFile"),
-            AcqDateDb = row.Field<string>("AcqDateDb")
+            AcqDateDb = row.Field<string>("AcqDateDb"),
+            IsDuplicate = row.Field<bool>("IsDuplicate")
         };
     }
 
@@ -537,6 +608,8 @@ public sealed class DatabaseViewerForm : Form
         _cmbAlbumFilter.SelectedIndex = 0;
         _txtNameFilter.Text = string.Empty;
         _chkUseDate.Checked = false;
+        _showDuplicatesOnly = false;
+        _btnDuplicatesOnly.Text = "Solo duplicati";
         _dtFrom.Value = DateTime.Today;
         _dtTo.Value = DateTime.Today;
         ApplyFilters();
@@ -615,6 +688,122 @@ public sealed class DatabaseViewerForm : Form
         }
 
         return result;
+    }
+
+    private bool HasValidDuplicateDateSelection()
+    {
+        var selectedRows = GetSelectedRows();
+        return selectedRows.Count == 1 &&
+               selectedRows[0].IsDuplicate &&
+               TryParseDbDate(selectedRows[0].AcqDateDb).HasValue;
+    }
+
+    private void UpdateDuplicateDateButtonState()
+    {
+        _btnAlignDuplicateDates.Enabled = HasValidDuplicateDateSelection();
+    }
+
+    private async Task AlignSelectedDuplicateDatesAsync()
+    {
+        var selectedRows = GetSelectedRows();
+        if (selectedRows.Count != 1 || !selectedRows[0].IsDuplicate)
+        {
+            MessageBox.Show(
+                this,
+                "Seleziona un solo file duplicato da usare come riferimento.",
+                "Allinea date duplicati",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var referenceRow = selectedRows[0];
+        var acquisitionDate = TryParseDbDate(referenceRow.AcqDateDb);
+        if (!acquisitionDate.HasValue)
+        {
+            MessageBox.Show(
+                this,
+                "Il file selezionato non ha una data acquisizione nel database. Impostala prima con 'Modifica Data'.",
+                "Allinea date duplicati",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var duplicateCount = _rowsTable.AsEnumerable()
+            .Count(row => string.Equals(row.Field<string>("Hash"), referenceRow.Hash, StringComparison.OrdinalIgnoreCase));
+        var confirmation = MessageBox.Show(
+            this,
+            $"Impostare la data {acquisitionDate.Value:yyyy-MM-dd HH:mm:ss} del file selezionato su tutti i {duplicateCount} file con lo stesso hash?\n\n" +
+            "La data e il percorso di destinazione nel database verranno aggiornati.",
+            "Allinea date duplicati",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (confirmation != DialogResult.Yes)
+        {
+            return;
+        }
+
+        SetLoadingState(true, "Allineamento date dei duplicati...");
+        try
+        {
+            var updatedRows = await Task.Run(() => UpdateDuplicateAcquisitionDateInDb(referenceRow, acquisitionDate.Value));
+            await LoadRowsAsync();
+            _lblStatus.Text = $"Data allineata su {updatedRows} file duplicati.";
+        }
+        catch (SqliteException ex)
+        {
+            var message = $"Errore durante l'aggiornamento dei duplicati nel database: {ex.Message}";
+            _lblStatus.Text = message;
+            MessageBox.Show(this, message, "Allinea date duplicati", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _lblStatus.Text = ex.Message;
+            MessageBox.Show(this, ex.Message, "Allinea date duplicati", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            SetLoadingState(false, string.Empty);
+        }
+    }
+
+    private int UpdateDuplicateAcquisitionDateInDb(SourceFileRow referenceRow, DateTime acquisitionDate)
+    {
+        using var conn = new SqliteConnection($"Data Source={_profile.DatabasePath}");
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        var formattedDate = acquisitionDate.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+        using var updateSources = conn.CreateCommand();
+        updateSources.Transaction = tx;
+        updateSources.CommandText = """
+            UPDATE SRC
+            SET dtExif = $acqDate
+            WHERE hash = $hash;
+            """;
+        updateSources.Parameters.AddWithValue("$acqDate", formattedDate);
+        updateSources.Parameters.AddWithValue("$hash", referenceRow.Hash);
+        var updatedRows = updateSources.ExecuteNonQuery();
+        if (updatedRows < 2)
+        {
+            throw new InvalidOperationException("Il database non contiene piu' file con l'hash selezionato.");
+        }
+
+        using var updateHashPath = conn.CreateCommand();
+        updateHashPath.Transaction = tx;
+        updateHashPath.CommandText = """
+            UPDATE HASH
+            SET filePathDst = $dstPath
+            WHERE hash = $hash;
+            """;
+        updateHashPath.Parameters.AddWithValue("$dstPath", BuildDestinationPath(referenceRow, acquisitionDate));
+        updateHashPath.Parameters.AddWithValue("$hash", referenceRow.Hash);
+        updateHashPath.ExecuteNonQuery();
+
+        tx.Commit();
+        return updatedRows;
     }
 
     private void UpdateAcquisitionDateInDb(IReadOnlyCollection<SourceFileRow> rows, DateTime newDate)
@@ -870,6 +1059,11 @@ public sealed class DatabaseViewerForm : Form
             var fromKey = from.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + "000000";
             var toKey = to.ToString("yyyyMMdd", CultureInfo.InvariantCulture) + "235959";
             predicates.Add($"AcqDateKey <> '' AND AcqDateKey >= '{fromKey}' AND AcqDateKey <= '{toKey}'");
+        }
+
+        if (_showDuplicatesOnly)
+        {
+            predicates.Add("IsDuplicate = true");
         }
 
         _rowsView.RowFilter = predicates.Count == 0 ? string.Empty : string.Join(" AND ", predicates);
@@ -1157,36 +1351,52 @@ public sealed class DatabaseViewerForm : Form
 
     private string ResolveDestinationPath(SourceFileRow row)
     {
+        var acquisitionDate = TryParseDbDate(row.AcqDateDb);
+        if (acquisitionDate.HasValue)
+        {
+            return BuildDestinationPath(row, acquisitionDate.Value);
+        }
+
         if (!string.IsNullOrWhiteSpace(row.FilePathDst))
         {
             return row.FilePathDst;
         }
 
-        if (string.IsNullOrWhiteSpace(_profile.DestinationRoot) || string.IsNullOrWhiteSpace(row.FilePathSrc))
+        if (string.IsNullOrWhiteSpace(row.FilePathSrc))
         {
             return string.Empty;
         }
 
-        var fileName = Path.GetFileName(row.FilePathSrc);
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            return string.Empty;
-        }
-
-        var acquisitionDate = TryParseDbDate(row.AcqDateDb);
         if (!acquisitionDate.HasValue && File.Exists(row.FilePathSrc))
         {
             acquisitionDate = File.GetLastWriteTime(row.FilePathSrc);
         }
 
-        var effectiveDate = acquisitionDate ?? DateTime.Now;
-        var relativeFolder = BuildDestinationRelativeFolder(_profile.DestinationTemplate, effectiveDate);
-        if (string.IsNullOrWhiteSpace(relativeFolder))
+        return BuildDestinationPath(row, acquisitionDate ?? DateTime.Now);
+    }
+
+    private string BuildDestinationPath(SourceFileRow row, DateTime date)
+    {
+        if (string.IsNullOrWhiteSpace(_profile.DestinationRoot))
         {
-            return Path.Combine(_profile.DestinationRoot, fileName);
+            return string.Empty;
         }
 
-        return Path.Combine(_profile.DestinationRoot, relativeFolder, fileName);
+        var targetFileName = !string.IsNullOrWhiteSpace(row.FilePathDst)
+            ? Path.GetFileName(row.FilePathDst)
+            : Path.GetFileName(row.FilePathSrc);
+        if (string.IsNullOrWhiteSpace(targetFileName))
+        {
+            return string.Empty;
+        }
+
+        var relativeFolder = BuildDestinationRelativeFolder(_profile.DestinationTemplate, date);
+        if (string.IsNullOrWhiteSpace(relativeFolder))
+        {
+            return Path.Combine(_profile.DestinationRoot, targetFileName);
+        }
+
+        return Path.Combine(_profile.DestinationRoot, relativeFolder, targetFileName);
     }
 
     private static string BuildDestinationRelativeFolder(string template, DateTime date)
@@ -1418,6 +1628,7 @@ public sealed class DatabaseViewerForm : Form
         public string? DtFileName { get; init; }
         public string? DtFile { get; init; }
         public string? AcqDateDb { get; init; }
+        public bool IsDuplicate { get; init; }
     }
 
     private static class ShellPreviewProvider

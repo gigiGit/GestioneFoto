@@ -154,9 +154,7 @@ public sealed class CopyCoordinator
                         continue;
                     }
 
-                    var destinationPath = string.IsNullOrWhiteSpace(row.FilePathDst)
-                        ? BuildDestinationPath(profile, row.FilePathSrc, row.AcquisitionDate)
-                        : row.FilePathDst;
+                    var destinationPath = BuildDestinationPath(profile, row.FilePathSrc, row.AcquisitionDate);
 
                     var destinationDirectory = Path.GetDirectoryName(destinationPath);
                     if (!string.IsNullOrWhiteSpace(destinationDirectory))

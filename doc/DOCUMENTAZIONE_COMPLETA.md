@@ -54,7 +54,11 @@ Tabelle principali SQLite:
 ### 4.3 Visualizza
 
 1. permette modifica di campi operativi (es. data acquisizione, album);
-2. tali modifiche restano persistenti perche' la preparazione automatica non riscrive record gia' presenti.
+2. il pulsante `Solo duplicati` filtra i record con hash condiviso da piu' file e si combina con gli altri filtri;
+3. selezionando un solo duplicato e premendo `Allinea date duplicati`, la sua data viene assegnata a tutti i record con lo stesso hash;
+4. tali modifiche restano persistenti perche' la preparazione automatica non riscrive record gia' presenti.
+
+L'allineamento aggiorna anche il percorso destinazione nel database secondo la data e il template attivi; non sposta file gia' copiati.
 
 ### 4.4 Copia
 
@@ -149,6 +153,10 @@ Esempio con data 1 giugno 2026:
 
 1. `YYYY/MM` produce cartella `2026/06`
 2. `YYYY/MM/DD` produce cartella `2026/06/01`
+
+Il template attivo viene applicato al momento della copia, anche ai file gia'
+registrati nel database ma ancora da copiare. Cambiare template non sposta
+automaticamente i file gia' copiati.
 
 Gestione da GUI:
 

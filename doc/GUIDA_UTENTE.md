@@ -31,6 +31,10 @@ Esempio pratico con foto del 1 giugno 2026:
 1. `YYYY/MM` crea la cartella `2026/06`
 2. `YYYY/MM/DD` crea la cartella `2026/06/01`
 
+Il template attivo viene applicato al momento della copia, anche ai file gia'
+registrati nel database ma ancora da copiare. Cambiare template non sposta
+automaticamente i file gia' copiati.
+
 ## Flusso consigliato (sempre uguale)
 
 ### 1) Copia i nuovi file in IncludePath
@@ -72,8 +76,12 @@ Usa `Pausa`, `Riprendi`, `Stop` se necessario.
 Qui puoi:
 
 1. controllare i record;
-2. modificare data acquisizione;
-3. impostare o correggere album.
+2. usare `Solo duplicati` per mostrare i file con hash condiviso da piu' record; il filtro si combina con gli altri filtri e `Mostra tutti` lo disattiva;
+3. selezionare un solo duplicato con la data corretta e premere `Allinea date duplicati` per assegnare quella data a tutti i file con lo stesso hash;
+4. modificare data acquisizione;
+5. impostare o correggere album.
+
+L'allineamento aggiorna anche il percorso destinazione nel database secondo la data e il template attivi; non sposta file gia' copiati.
 
 ### 4) Premi `Copia`
 
@@ -103,6 +111,3 @@ Usa `Pausa`, `Riprendi`, `Stop` se necessario.
 
 1. Ogni volta che scarichi nuovi file: `Scansione` -> `Visualizza` (se vuoi) -> `Copia`.
 2. Quando aggiorni album: `Rigenera Album`.
-
-
-
