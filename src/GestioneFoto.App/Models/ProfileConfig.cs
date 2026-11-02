@@ -12,4 +12,5 @@ public sealed class ProfileConfig
     public required string[] Extensions { get; init; }
     public required string[] ExcludePaths { get; init; }
     public required long MinSize { get; init; }
+    public string? ArchiveTempPath { get; init; }
 }

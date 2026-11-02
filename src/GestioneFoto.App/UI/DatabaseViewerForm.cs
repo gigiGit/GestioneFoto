@@ -284,7 +284,7 @@ public sealed class DatabaseViewerForm : Form
         var grpMedia = new GroupBox { Text = "Dettagli foto/video (acquisizione)", Dock = DockStyle.Fill };
         var mediaLayout = BuildDetailsLayout();
         _lblMediaType = AddDetail(mediaLayout, "Tipo");
-        _lblAcqDb = AddDetail(mediaLayout, "Data acquisizione DB");
+        _lblAcqDb = AddDetail(mediaLayout, "Data definitiva (vista SQL)");
         _lblAcqExif = AddDetail(mediaLayout, "Data acquisizione EXIF");
         grpMedia.Controls.Add(mediaLayout);
         rightPanel.Controls.Add(grpMedia, 0, 2);
@@ -296,7 +296,7 @@ public sealed class DatabaseViewerForm : Form
         _lblDstSize = AddDetail(dstLayout, "Dimensione");
         _lblDstCreated = AddDetail(dstLayout, "Data creazione");
         _lblDstModified = AddDetail(dstLayout, "Data modifica");
-        _lblDstAcqExif = AddDetail(dstLayout, "Data acquisizione EXIF");
+        _lblDstAcqExif = AddDetail(dstLayout, "Data acquisizione (vista SQL)");
         grpDestination.Controls.Add(dstLayout);
         rightPanel.Controls.Add(grpDestination, 0, 3);
 
@@ -373,6 +373,7 @@ public sealed class DatabaseViewerForm : Form
         _rowsTable.Columns.Add("AcqDateDb", typeof(string));
         _rowsTable.Columns.Add("AcqDateKey", typeof(string));
         _rowsTable.Columns.Add("IsDuplicate", typeof(bool));
+        _rowsTable.Columns.Add("Thumbnail", typeof(byte[]));
     }
 
     private async Task LoadRowsAsync()
@@ -411,7 +412,8 @@ public sealed class DatabaseViewerForm : Form
                     row.DtFile ?? string.Empty,
                     row.AcqDateDb ?? string.Empty,
                     BuildAcqDateKey(row.AcqDateDb),
-                    duplicateHashes.Contains(row.Hash));
+                    duplicateHashes.Contains(row.Hash),
+                    row.Thumbnail is not null ? (object)row.Thumbnail : DBNull.Value);
             }
 
             RefreshAlbumFilterValues();
@@ -443,18 +445,17 @@ public sealed class DatabaseViewerForm : Form
 
     private List<SourceFileRow> ReadRowsFromDb()
     {
-        using var conn = new SqliteConnection($"Data Source={_profile.DatabasePath}");
-        conn.Open();
-
         var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var schemaCommand = conn.CreateCommand())
+        using (var schemaConnection = new SqliteConnection($"Data Source={_profile.DatabasePath}"))
         {
+            schemaConnection.Open();
+            using var schemaCommand = schemaConnection.CreateCommand();
             schemaCommand.CommandText = """
-                SELECT name
-                FROM sqlite_master
-                WHERE type = 'table'
-                  AND name IN ('SRC', 'HASH');
-                """;
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type = 'table'
+                      AND name IN ('SRC', 'HASH');
+                    """;
 
             using var schemaReader = schemaCommand.ExecuteReader();
             while (schemaReader.Read())
@@ -473,6 +474,10 @@ public sealed class DatabaseViewerForm : Form
                 "Verifica il DatabasePath del profilo oppure esegui una scansione per inizializzare il database.");
         }
 
+        new HashDbWriter().EnsureSchema(_profile.DatabasePath);
+
+        using var conn = new SqliteConnection($"Data Source={_profile.DatabasePath}");
+        conn.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT
@@ -485,10 +490,13 @@ public sealed class DatabaseViewerForm : Form
                 s.dtExif,
                 s.dtFileName,
                 s.dtFile,
-                coalesce(s.dtExif, s.dtFileName, s.dtFile)
+                v.data_acquisizione,
+                s.thumbnail
             FROM SRC s
             LEFT JOIN HASH h
                 ON h.hash = s.hash
+            LEFT JOIN V_HASH_ACQUISITION_DATE v
+                ON v.hash = s.hash
             ORDER BY s.file;
             """;
 
@@ -496,6 +504,7 @@ public sealed class DatabaseViewerForm : Form
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
         {
+            var thumbnailData = reader.IsDBNull(10) ? null : (byte[])reader.GetValue(10);
             result.Add(new SourceFileRow
             {
                 Hash = reader.GetString(0),
@@ -507,7 +516,8 @@ public sealed class DatabaseViewerForm : Form
                 DtExif = reader.IsDBNull(6) ? null : reader.GetString(6),
                 DtFileName = reader.IsDBNull(7) ? null : reader.GetString(7),
                 DtFile = reader.IsDBNull(8) ? null : reader.GetString(8),
-                AcqDateDb = reader.IsDBNull(9) ? null : reader.GetString(9)
+                AcqDateDb = reader.IsDBNull(9) ? null : reader.GetString(9),
+                Thumbnail = thumbnailData
             });
         }
 
@@ -555,6 +565,7 @@ public sealed class DatabaseViewerForm : Form
     private static SourceFileRow ToSourceFileRow(DataRowView rowView)
     {
         var row = rowView.Row;
+        var thumbnailData = row.IsNull("Thumbnail") ? null : row.Field<byte[]>("Thumbnail");
         return new SourceFileRow
         {
             Hash = row.Field<string>("Hash") ?? string.Empty,
@@ -567,7 +578,8 @@ public sealed class DatabaseViewerForm : Form
             DtFileName = row.Field<string>("DtFileName"),
             DtFile = row.Field<string>("DtFile"),
             AcqDateDb = row.Field<string>("AcqDateDb"),
-            IsDuplicate = row.Field<bool>("IsDuplicate")
+            IsDuplicate = row.Field<bool>("IsDuplicate"),
+            Thumbnail = thumbnailData
         };
     }
 
@@ -780,7 +792,7 @@ public sealed class DatabaseViewerForm : Form
         updateSources.Transaction = tx;
         updateSources.CommandText = """
             UPDATE SRC
-            SET dtExif = $acqDate
+            SET dtAcqOverride = $acqDate
             WHERE hash = $hash;
             """;
         updateSources.Parameters.AddWithValue("$acqDate", formattedDate);
@@ -818,12 +830,20 @@ public sealed class DatabaseViewerForm : Form
         updateSrc.Transaction = tx;
         updateSrc.CommandText = """
             UPDATE SRC
-            SET dtExif = $acqDate
-            WHERE hash = $hash AND file = $file;
+            SET dtAcqOverride = $acqDate
+            WHERE hash = $hash;
             """;
         var pAcqDate = updateSrc.Parameters.Add("$acqDate", SqliteType.Text);
         var pHash = updateSrc.Parameters.Add("$hash", SqliteType.Text);
-        var pFile = updateSrc.Parameters.Add("$file", SqliteType.Text);
+
+        using var selectEffectiveDate = conn.CreateCommand();
+        selectEffectiveDate.Transaction = tx;
+        selectEffectiveDate.CommandText = """
+            SELECT data_acquisizione
+            FROM V_HASH_ACQUISITION_DATE
+            WHERE hash = $hash;
+            """;
+        var pSelectHash = selectEffectiveDate.Parameters.Add("$hash", SqliteType.Text);
 
         using var updateHashPath = conn.CreateCommand();
         updateHashPath.Transaction = tx;
@@ -835,13 +855,14 @@ public sealed class DatabaseViewerForm : Form
         var pHashDst = updateHashPath.Parameters.Add("$hash", SqliteType.Text);
         var pDstPath = updateHashPath.Parameters.Add("$dstPath", SqliteType.Text);
 
-        foreach (var row in rows)
+        foreach (var row in rows.DistinctBy(row => row.Hash, StringComparer.OrdinalIgnoreCase))
         {
             pAcqDate.Value = formattedDate;
             pHash.Value = row.Hash;
-            pFile.Value = row.FilePathSrc;
             updateSrc.ExecuteNonQuery();
 
+            pSelectHash.Value = row.Hash;
+            var effectiveDate = selectEffectiveDate.ExecuteScalar()?.ToString();
             var updatedRow = new SourceFileRow
             {
                 Hash = row.Hash,
@@ -853,10 +874,10 @@ public sealed class DatabaseViewerForm : Form
                 DtExif = row.DtExif,
                 DtFileName = row.DtFileName,
                 DtFile = row.DtFile,
-                AcqDateDb = formattedDate
+                AcqDateDb = effectiveDate
             };
             pHashDst.Value = row.Hash;
-            pDstPath.Value = ResolveDestinationPath(updatedRow);
+            pDstPath.Value = BuildDestinationPath(updatedRow, TryParseDbDate(effectiveDate));
             updateHashPath.ExecuteNonQuery();
         }
 
@@ -1141,6 +1162,12 @@ public sealed class DatabaseViewerForm : Form
             _lblSourceCreated.Text = srcInfo.CreationTime.ToString("yyyy-MM-dd HH:mm:ss");
             _lblSourceModified.Text = srcInfo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss");
         }
+        else if (ArchiveSupport.IsVirtualPath(row.FilePathSrc))
+        {
+            _lblSourceSize.Text = row.Size.HasValue ? $"{row.Size:N0} byte (archivio)" : "-";
+            _lblSourceCreated.Text = "File in archivio";
+            _lblSourceModified.Text = "File in archivio";
+        }
         else
         {
             _lblSourceSize.Text = row.Size.HasValue ? $"{row.Size:N0} byte (DB)" : "-";
@@ -1156,7 +1183,7 @@ public sealed class DatabaseViewerForm : Form
             ? "-"
             : row.AcqDateDb;
 
-        var exifDate = File.Exists(row.FilePathSrc)
+        var exifDate = File.Exists(row.FilePathSrc) && !ArchiveSupport.IsVirtualPath(row.FilePathSrc)
             ? _exifReader.TryRead(row.FilePathSrc)
             : null;
         _lblAcqExif.Text = exifDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
@@ -1170,13 +1197,13 @@ public sealed class DatabaseViewerForm : Form
         var dstExists = !string.IsNullOrWhiteSpace(destinationPath) && File.Exists(destinationPath);
         _lblDstExists.Text = dstExists ? "Si" : "No";
         _lblDstExists.ForeColor = dstExists ? SystemColors.ControlText : Color.Red;
+        _lblDstAcqExif.Text = string.IsNullOrWhiteSpace(row.AcqDateDb) ? "-" : row.AcqDateDb;
 
         if (!dstExists)
         {
             _lblDstSize.Text = "-";
             _lblDstCreated.Text = "-";
             _lblDstModified.Text = "-";
-            _lblDstAcqExif.Text = "-";
             return;
         }
 
@@ -1185,12 +1212,27 @@ public sealed class DatabaseViewerForm : Form
         _lblDstCreated.Text = dstInfo.CreationTime.ToString("yyyy-MM-dd HH:mm:ss");
         _lblDstModified.Text = dstInfo.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss");
 
-        var dstExifDate = _exifReader.TryRead(destinationPath);
-        _lblDstAcqExif.Text = dstExifDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
     }
 
     private void UpdatePreview(SourceFileRow row)
     {
+        // Prova prima il thumbnail dal DB (per archivi e file già scansionati)
+        if (row.Thumbnail is not null)
+        {
+            try
+            {
+                using var memStream = new MemoryStream(row.Thumbnail);
+                ClearPreviewImage();
+                _previewBox.Image = Image.FromStream(memStream);
+                _lblStatus.Text = $"Record sorgenti: {_rowsView.Count} filtrati su {_rowsTable.Rows.Count}";
+                return;
+            }
+            catch
+            {
+            }
+        }
+
+        // Se non c'è thumbnail, usa il metodo originale (file diretto o shell thumbnail)
         var previewPath = File.Exists(row.FilePathSrc)
             ? row.FilePathSrc
             : (File.Exists(row.FilePathDst) ? row.FilePathDst : null);
@@ -1216,7 +1258,7 @@ public sealed class DatabaseViewerForm : Form
         }
     }
 
-    private static Image TryCreatePreviewImage(string filePath)
+    private Image TryCreatePreviewImage(string filePath)
     {
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
         if (IsImageExtension(extension))
@@ -1367,15 +1409,10 @@ public sealed class DatabaseViewerForm : Form
             return string.Empty;
         }
 
-        if (!acquisitionDate.HasValue && File.Exists(row.FilePathSrc))
-        {
-            acquisitionDate = File.GetLastWriteTime(row.FilePathSrc);
-        }
-
-        return BuildDestinationPath(row, acquisitionDate ?? DateTime.Now);
+        return BuildDestinationPath(row, acquisitionDate);
     }
 
-    private string BuildDestinationPath(SourceFileRow row, DateTime date)
+    private string BuildDestinationPath(SourceFileRow row, DateTime? date)
     {
         if (string.IsNullOrWhiteSpace(_profile.DestinationRoot))
         {
@@ -1390,7 +1427,9 @@ public sealed class DatabaseViewerForm : Form
             return string.Empty;
         }
 
-        var relativeFolder = BuildDestinationRelativeFolder(_profile.DestinationTemplate, date);
+        var relativeFolder = date.HasValue
+            ? BuildDestinationRelativeFolder(_profile.DestinationTemplate, date.Value)
+            : string.Empty;
         if (string.IsNullOrWhiteSpace(relativeFolder))
         {
             return Path.Combine(_profile.DestinationRoot, targetFileName);
@@ -1629,6 +1668,7 @@ public sealed class DatabaseViewerForm : Form
         public string? DtFile { get; init; }
         public string? AcqDateDb { get; init; }
         public bool IsDuplicate { get; init; }
+        public byte[]? Thumbnail { get; init; }
     }
 
     private static class ShellPreviewProvider

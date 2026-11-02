@@ -66,8 +66,9 @@ Suggerimento pratico:
 La scansione:
 
 1. analizza `IncludePath`;
-2. inserisce nel database solo file mai registrati prima (stesso codice identificativo del file + stesso percorso non vengono ritoccati);
-3. prepara automaticamente i nuovi file alla fase di copia (non serve un comando separato di preparazione).
+2. nella prima fase registra percorso, date e dimensione del file e calcola l'hash; se hash e percorso sono gia' presenti, passa al file successivo;
+3. nella seconda fase recupera i dati EXIF mancanti e genera la miniatura per la visualizzazione;
+4. prepara automaticamente i nuovi file alla fase di copia (non serve un comando separato di preparazione).
 
 Usa `Pausa`, `Riprendi`, `Stop` se necessario.
 

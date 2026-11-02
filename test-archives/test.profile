@@ -1,0 +1,10 @@
+﻿ProfileName=Test-Archives
+MinSize=100
+UserName=test
+IncludePath=G:\GestioneFoto\test-archives\archives
+ExcludePaths=
+Extensions=jpg,jpeg,png
+DestinationRoot=G:\GestioneFoto\test-archives\output
+DatabasePath=G:\GestioneFoto\test-archives\test-scan.db
+DestinationTemplate=YYYY/MM/DD
+ArchiveTempPath=

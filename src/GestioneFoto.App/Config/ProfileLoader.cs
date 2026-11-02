@@ -43,7 +43,8 @@ public static class ProfileLoader
             AlbumDestination = map.TryGetValue("AlbumDestination", out var albumDestination) ? albumDestination : null,
             Extensions = SplitList(GetRequired(map, "Extensions")),
             ExcludePaths = SplitPaths(map.TryGetValue("ExcludePaths", out var ex) ? ex : string.Empty),
-            MinSize = long.TryParse(map.TryGetValue("MinSize", out var ms) ? ms : "0", out var minSize) ? minSize : 0
+            MinSize = long.TryParse(map.TryGetValue("MinSize", out var ms) ? ms : "0", out var minSize) ? minSize : 0,
+            ArchiveTempPath = map.TryGetValue("ArchiveTempPath", out var archiveTempPath) ? archiveTempPath : null
         };
     }
 

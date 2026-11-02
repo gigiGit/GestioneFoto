@@ -1,0 +1,10 @@
+ProfileName=Lollo
+MinSize=100
+UserName=test
+IncludePath=F:\TarPhoto\Lollo
+ExcludePaths=
+Extensions=jpg,jpeg,png
+DestinationRoot=G:\GestioneFoto\test-archives\output
+DatabasePath=G:\GestioneFoto\test-archives\lollo-scan.db
+DestinationTemplate=YYYY/MM/DD
+AlbumDestination=

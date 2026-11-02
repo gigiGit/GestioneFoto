@@ -36,6 +36,19 @@ I profili sono in `config/*.profile`.
 
 L'interfaccia operativa e' GestioneFoto.App (WinForms C#).
 
+La GUI avvia `GestioneFoto.Scanner.exe` come processo separato: lo scanner
+elabora i file in parallelo e serializza le scritture SQLite. Pausa, ripresa e
+stop della scansione sono inoltrati al processo. Per eseguire una scansione
+autonoma:
+
+```powershell
+.\GestioneFoto.Scanner.exe --profile .\config\Giuliano.profile --max-parallelism 8
+```
+
+La modalita' autonoma aggiorna la tabella `SRC`; la GUI coordina inoltre la
+preparazione automatica successiva alla scansione. Lo script
+`setup\Build-AppAndMsi.ps1` pubblica entrambi gli eseguibili insieme.
+
 Per inizializzare una workstation Windows appena configurata, esegui dalla
 radice del repository:
 

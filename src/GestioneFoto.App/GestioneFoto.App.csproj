@@ -9,8 +9,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Config\ProfileLoader.cs" />
+    <Compile Remove="Models\ProfileConfig.cs" />
+    <Compile Remove="Models\ProgressInfo.cs" />
+    <Compile Remove="Services\ArchiveSupport.cs" />
+    <Compile Remove="Services\ExifDateReader.cs" />
+    <Compile Remove="Services\FileNameDateParser.cs" />
+    <Compile Remove="Services\HashDbWriter.cs" />
+    <Compile Remove="Services\PauseController.cs" />
+    <Compile Remove="Services\ScanCoordinator.cs" />
+    <Compile Remove="Services\ThumbnailGenerator.cs" />
+    <ProjectReference Include="..\GestioneFoto.Core\GestioneFoto.Core.csproj" />
+    <ProjectReference Include="..\GestioneFoto.Scanner\GestioneFoto.Scanner.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Markdig" Version="0.37.0" />
-    <PackageReference Include="MetadataExtractor" Version="2.8.1" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
   </ItemGroup>
 </Project>

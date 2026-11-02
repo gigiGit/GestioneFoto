@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GestioneFoto.App\Models\ProfileConfig.cs" Link="Models\ProfileConfig.cs" />
+    <Compile Include="..\GestioneFoto.App\Models\ProgressInfo.cs" Link="Models\ProgressInfo.cs" />
+    <Compile Include="..\GestioneFoto.App\Config\ProfileLoader.cs" Link="Config\ProfileLoader.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\ArchiveSupport.cs" Link="Services\ArchiveSupport.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\ExifDateReader.cs" Link="Services\ExifDateReader.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\FileNameDateParser.cs" Link="Services\FileNameDateParser.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\HashDbWriter.cs" Link="Services\HashDbWriter.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\PauseController.cs" Link="Services\PauseController.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\ScanCoordinator.cs" Link="Services\ScanCoordinator.cs" />
+    <Compile Include="..\GestioneFoto.App\Services\ThumbnailGenerator.cs" Link="Services\ThumbnailGenerator.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MetadataExtractor" Version="2.8.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
+  </ItemGroup>
+</Project>

@@ -141,7 +141,7 @@ public sealed class CopyCoordinator
                 var row = rows[i];
                 try
                 {
-                    if (!File.Exists(row.FilePathSrc))
+                    if (!ArchiveSupport.Exists(row.FilePathSrc))
                     {
                         skippedMissingSource++;
                         progress.Report(new ProgressInfo
@@ -162,7 +162,14 @@ public sealed class CopyCoordinator
                         Directory.CreateDirectory(destinationDirectory);
                     }
 
-                    File.Copy(row.FilePathSrc, destinationPath, true);
+                    if (ArchiveSupport.IsVirtualPath(row.FilePathSrc))
+                    {
+                        ArchiveSupport.ExtractTo(row.FilePathSrc, destinationPath);
+                    }
+                    else
+                    {
+                        File.Copy(row.FilePathSrc, destinationPath, true);
+                    }
 
                     if (row.AcquisitionDate.HasValue)
                     {
@@ -297,12 +304,11 @@ public sealed class CopyCoordinator
                 h.hash,
                 h.filePathSrc,
                 h.filePathDst,
-                coalesce(s.dtExif, s.dtFileName, s.dtFile),
+                v.data_acquisizione,
                 h.album
             FROM HASH h
-            LEFT JOIN SRC s
-                ON s.hash = h.hash
-               AND s.file = h.filePathSrc
+            LEFT JOIN V_HASH_ACQUISITION_DATE v
+                ON v.hash = h.hash
             WHERE coalesce(h.copied, 0) = 0
             ORDER BY h.filePathDst, h.filePathSrc;
             """;
@@ -371,8 +377,9 @@ public sealed class CopyCoordinator
     private static string BuildDestinationPath(ProfileConfig profile, string sourcePath, DateTime? acquisitionDate)
     {
         var fileName = Path.GetFileName(sourcePath);
-        var effectiveDate = acquisitionDate ?? File.GetLastWriteTime(sourcePath);
-        var relativeFolder = BuildDestinationRelativeFolder(profile.DestinationTemplate, effectiveDate);
+        var relativeFolder = acquisitionDate.HasValue
+            ? BuildDestinationRelativeFolder(profile.DestinationTemplate, acquisitionDate.Value)
+            : string.Empty;
         return string.IsNullOrWhiteSpace(relativeFolder)
             ? Path.Combine(profile.DestinationRoot, fileName)
             : Path.Combine(profile.DestinationRoot, relativeFolder, fileName);

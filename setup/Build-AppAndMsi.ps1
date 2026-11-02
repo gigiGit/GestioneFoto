@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ProjectPath = ".\src\GestioneFoto.App\GestioneFoto.App.csproj",
+    [string]$ScannerProjectPath = ".\src\GestioneFoto.Scanner\GestioneFoto.Scanner.csproj",
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [switch]$SelfContained = $true,
@@ -32,13 +33,19 @@ function Invoke-Checked {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $projectFullPath = Join-Path $repoRoot $ProjectPath
+$scannerProjectFullPath = Join-Path $repoRoot $ScannerProjectPath
 $publishDirForMsi = ".\\src\\GestioneFoto.App\\bin\\$Configuration\\net8.0-windows\\$Runtime\\publish"
 
 if (-not (Test-Path -LiteralPath $projectFullPath)) {
     throw "Progetto non trovato: $projectFullPath"
 }
 
+if (-not (Test-Path -LiteralPath $scannerProjectFullPath)) {
+    throw "Progetto scanner non trovato: $scannerProjectFullPath"
+}
+
 $projectResolved = (Resolve-Path -LiteralPath $projectFullPath).Path
+$scannerProjectResolved = (Resolve-Path -LiteralPath $scannerProjectFullPath).Path
 $publishPath = Join-Path $repoRoot "src\GestioneFoto.App\bin\$Configuration\net8.0-windows\$Runtime\publish"
 $buildMsiScript = Join-Path $PSScriptRoot "Build-Msi.ps1"
 
@@ -90,6 +97,20 @@ $publishArgs = @(
 Write-Step "Publish progetto in: $publishPath"
 Invoke-Checked -FileName "dotnet" -Arguments $publishArgs -ErrorMessage "Publish fallita"
 
+Write-Step "Publish scanner in: $publishPath"
+$scannerPublishArgs = @(
+    "publish",
+    $scannerProjectResolved,
+    "-c", $Configuration,
+    "-r", $Runtime,
+    "--self-contained", $selfContainedValue,
+    "-o", $publishPath,
+    "/p:PublishSingleFile=$publishSingleFileValue",
+    "/p:IncludeNativeLibrariesForSelfExtract=$publishSingleFileValue",
+    "/p:DisableImplicitNuGetFallbackFolder=true"
+)
+Invoke-Checked -FileName "dotnet" -Arguments $scannerPublishArgs -ErrorMessage "Publish scanner fallito"
+
 if (-not (Test-Path -LiteralPath $publishPath)) {
     throw "Cartella publish non trovata dopo il publish: $publishPath"
 }
@@ -97,6 +118,11 @@ if (-not (Test-Path -LiteralPath $publishPath)) {
 $exePath = Join-Path $publishPath "GestioneFoto.App.exe"
 if (-not (Test-Path -LiteralPath $exePath)) {
     throw "Eseguibile non trovato dopo il publish: $exePath"
+}
+
+$scannerExePath = Join-Path $publishPath "GestioneFoto.Scanner.exe"
+if (-not (Test-Path -LiteralPath $scannerExePath)) {
+    throw "Eseguibile scanner non trovato dopo il publish: $scannerExePath"
 }
 
 $binPath = Join-Path $repoRoot "bin"

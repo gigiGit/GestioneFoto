@@ -11,6 +11,7 @@ public sealed class MainForm : Form
     private readonly ComboBox _cmbProfiles;
     private readonly ProgressBar _progress;
     private readonly Label _lblStatus;
+    private readonly ToolTip _statusToolTip;
     private readonly Button _btnStart;
     private readonly Button _btnPause;
     private readonly Button _btnResume;
@@ -23,7 +24,7 @@ public sealed class MainForm : Form
     private readonly TextBox _txtProfileInfo;
     private readonly TextBox _txtLog;
 
-    private readonly ScanCoordinator _coordinator;
+    private readonly ScannerProcessCoordinator _scannerCoordinator;
     private readonly CopyCoordinator _copyCoordinator;
     private readonly UtilityCoordinator _utilityCoordinator;
     private readonly PauseController _pause;
@@ -81,7 +82,7 @@ public sealed class MainForm : Form
 
         var dbWriter = new HashDbWriter();
         var exifReader = new ExifDateReader();
-        _coordinator = new ScanCoordinator(exifReader, dbWriter);
+        _scannerCoordinator = new ScannerProcessCoordinator();
         _copyCoordinator = new CopyCoordinator(dbWriter);
         _utilityCoordinator = new UtilityCoordinator(dbWriter, exifReader);
         _pause = new PauseController();
@@ -156,9 +157,12 @@ public sealed class MainForm : Form
             Left = 16,
             Top = 180,
             Width = 700,
+            AutoEllipsis = true,
             Text = "Pronto",
             Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
         };
+        _statusToolTip = new ToolTip();
+        FormClosed += (_, _) => _statusToolTip.Dispose();
         Controls.Add(_lblStatus);
 
         var lblProfileInfo = new Label
@@ -243,6 +247,7 @@ public sealed class MainForm : Form
             _txtProfileInfo.Text = BuildProfileInfo(profile);
             _cts = new CancellationTokenSource();
             _pause.Resume();
+            _scannerCoordinator.Resume();
 
             SetRunningUi(true, canPause: true);
             _operationStartedAt = DateTime.UtcNow;
@@ -251,11 +256,18 @@ public sealed class MainForm : Form
 
             var progress = new Progress<ProgressInfo>(p =>
             {
-                _lblStatus.Text = FormatStatusWithEta(p);
+                var status = FormatStatusWithEta(p);
+                if (!string.IsNullOrWhiteSpace(p.CurrentFile))
+                {
+                    status += $" | File: {Path.GetFileName(p.CurrentFile)}";
+                }
+
+                _lblStatus.Text = status;
+                _statusToolTip.SetToolTip(_lblStatus, p.CurrentFile ?? string.Empty);
                 _progress.Value = Math.Clamp(p.Percent, 0, 100);
             });
 
-            _running = _coordinator.RunAsync(profile, _pause, progress, _cts.Token);
+            _running = _scannerCoordinator.RunAsync(profile, progress, _cts.Token);
             await _running;
 
             Log("Scansione completata.");
@@ -300,6 +312,7 @@ public sealed class MainForm : Form
     private void Pause()
     {
         _pause.Pause();
+        _scannerCoordinator.Pause();
         _btnPause.Enabled = false;
         _btnResume.Enabled = true;
         _lblStatus.Text = "In pausa";
@@ -309,6 +322,7 @@ public sealed class MainForm : Form
     private void Resume()
     {
         _pause.Resume();
+        _scannerCoordinator.Resume();
         _btnPause.Enabled = true;
         _btnResume.Enabled = false;
         Log("Ripresa richiesta.");

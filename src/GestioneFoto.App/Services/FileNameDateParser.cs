@@ -31,6 +31,53 @@ public static class FileNameDateParser
         return TryReadDateFromFileName(fileName);
     }
 
+    public static DateTime? TryReadDateFromParentFolders(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        if (ArchiveSupport.IsVirtualPath(filePath))
+        {
+            var (archivePath, entryPath) = ArchiveSupport.Split(filePath);
+            var entrySegments = entryPath.Replace('\\', '/')
+                .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            for (var i = entrySegments.Length - 2; i >= 0; i--)
+            {
+                var date = TryReadDateFromFileName(entrySegments[i]);
+                if (date.HasValue)
+                {
+                    return date;
+                }
+            }
+
+            filePath = archivePath;
+        }
+
+        var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            var folderName = Path.GetFileName(directory);
+            var date = TryReadDateFromFileName(folderName);
+            if (date.HasValue)
+            {
+                return date;
+            }
+
+            var parent = Path.GetDirectoryName(directory);
+            if (string.Equals(parent, directory, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            directory = parent;
+        }
+
+        return null;
+    }
+
     public static DateTime? TryReadDateFromFileName(string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))

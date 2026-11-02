@@ -27,9 +27,17 @@ public sealed class HashDbWriter
                 file TEXT NOT NULL,
                 size INTEGER,
                 dtExif TEXT,
+                dtExifOriginal TEXT,
+                dtExifDigitized TEXT,
+                dtExifDateTime TEXT,
+                dtAcqOverride TEXT,
                 dtFileName TEXT,
+                dtFolderName TEXT,
                 dtFile TEXT,
+                dtCreation TEXT,
+                absolutePath TEXT,
                 scanSession INTEGER NOT NULL DEFAULT 0,
+                thumbnail BLOB,
                 PRIMARY KEY (hash, file)
             );
 
@@ -56,7 +64,138 @@ public sealed class HashDbWriter
 
         EnsureSrcScanSessionColumn(conn);
         EnsureHashCopiedColumn(conn);
+        EnsureSrcThumbnailColumn(conn);
+        EnsureSrcColumn(conn, "dtExifOriginal", "TEXT");
+        EnsureSrcColumn(conn, "dtExifDigitized", "TEXT");
+        EnsureSrcColumn(conn, "dtExifDateTime", "TEXT");
+        EnsureSrcColumn(conn, "dtAcqOverride", "TEXT");
+        EnsureSrcColumn(conn, "dtFolderName", "TEXT");
+        EnsureSrcColumn(conn, "dtCreation", "TEXT");
+        EnsureSrcColumn(conn, "absolutePath", "TEXT");
+        EnsureAcquisitionDateView(conn);
     }
+
+    private static void EnsureAcquisitionDateView(SqliteConnection conn)
+    {
+        using (var check = conn.CreateCommand())
+        {
+            check.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'V_HASH_ACQUISITION_DATE';";
+            var existingSql = check.ExecuteScalar()?.ToString();
+            if (existingSql?.Contains("dtFolderName", StringComparison.OrdinalIgnoreCase) != true)
+            {
+                using var drop = conn.CreateCommand();
+                drop.CommandText = "DROP VIEW IF EXISTS V_HASH_ACQUISITION_DATE;";
+                drop.ExecuteNonQuery();
+            }
+        }
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            CREATE VIEW IF NOT EXISTS V_HASH_ACQUISITION_DATE AS
+            WITH candidates AS (
+                SELECT
+                    hash,
+                    coalesce(
+                        nullif(trim(dtAcqOverride), ''),
+                        nullif(trim(dtExifOriginal), ''),
+                        nullif(trim(dtExifDigitized), ''),
+                        nullif(trim(dtExifDateTime), ''),
+                        nullif(trim(dtExif), ''),
+                        nullif(trim(dtFileName), ''),
+                        nullif(trim(dtFolderName), ''),
+                        nullif(trim(dtCreation), ''),
+                        nullif(trim(dtFile), '')
+                    ) AS data_acquisizione,
+                    CASE
+                        WHEN trim(coalesce(dtAcqOverride, '')) <> '' THEN 'Modifica manuale'
+                        WHEN trim(coalesce(dtExifOriginal, '')) <> '' THEN 'EXIF Original'
+                        WHEN trim(coalesce(dtExifDigitized, '')) <> '' THEN 'EXIF Digitized'
+                        WHEN trim(coalesce(dtExifDateTime, '')) <> '' THEN 'EXIF DateTime'
+                        WHEN trim(coalesce(dtExif, '')) <> '' THEN 'EXIF'
+                        WHEN trim(coalesce(dtFileName, '')) <> '' THEN 'Nome file'
+                        WHEN trim(coalesce(dtFolderName, '')) <> '' THEN 'Cartella'
+                        WHEN trim(coalesce(dtCreation, '')) <> '' THEN 'Creazione file'
+                        WHEN trim(coalesce(dtFile, '')) <> '' THEN 'Data file'
+                    END AS data_source,
+                    CASE
+                        WHEN trim(coalesce(dtAcqOverride, '')) <> '' THEN 0
+                        WHEN trim(coalesce(dtExifOriginal, '')) <> '' THEN 1
+                        WHEN trim(coalesce(dtExifDigitized, '')) <> '' THEN 2
+                        WHEN trim(coalesce(dtExifDateTime, '')) <> '' THEN 3
+                        WHEN trim(coalesce(dtExif, '')) <> '' THEN 4
+                        WHEN trim(coalesce(dtFileName, '')) <> '' THEN 5
+                        WHEN trim(coalesce(dtFolderName, '')) <> '' THEN 6
+                        WHEN trim(coalesce(dtCreation, '')) <> '' THEN 7
+                        WHEN trim(coalesce(dtFile, '')) <> '' THEN 8
+                        ELSE 9
+                    END AS date_priority,
+                    file AS source_file
+                FROM SRC
+            ),
+            ranked AS (
+                SELECT
+                    *,
+                    row_number() OVER (
+                        PARTITION BY hash
+                        ORDER BY date_priority, data_acquisizione, source_file
+                    ) AS rn
+                FROM candidates
+            )
+            SELECT hash, data_acquisizione, data_source, source_file
+            FROM ranked
+            WHERE rn = 1;
+            """;
+        cmd.ExecuteNonQuery();
+    }
+
+    private static void EnsureSrcColumn(SqliteConnection conn, string columnName, string columnType)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "PRAGMA table_info(SRC);";
+
+        using (var reader = check.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (!reader.IsDBNull(1) &&
+                    string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+        }
+
+        using var alter = conn.CreateCommand();
+        alter.CommandText = $"ALTER TABLE SRC ADD COLUMN {columnName} {columnType};";
+        alter.ExecuteNonQuery();
+    }
+
+    private static void EnsureSrcThumbnailColumn(SqliteConnection conn)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "PRAGMA table_info(SRC);";
+
+        var hasThumbnail = false;
+        using (var reader = check.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (!reader.IsDBNull(1) && string.Equals(reader.GetString(1), "thumbnail", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasThumbnail = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasThumbnail)
+        {
+            using var alter = conn.CreateCommand();
+            alter.CommandText = "ALTER TABLE SRC ADD COLUMN thumbnail BLOB;";
+            alter.ExecuteNonQuery();
+        }
+    }
+
 
     private static void EnsureSrcScanSessionColumn(SqliteConnection conn)
     {
@@ -164,10 +303,8 @@ public sealed class HashDbWriter
             fill.CommandText = """
                 INSERT INTO DST(hash, data_acquisizione)
                 SELECT
-                    hash,
-                    coalesce(min(dtExif), min(dtFileName), min(dtFile))
-                FROM SRC
-                GROUP BY hash;
+                    hash, data_acquisizione
+                FROM V_HASH_ACQUISITION_DATE;
                 """;
             var rows = fill.ExecuteNonQuery();
             tx.Commit();
@@ -202,26 +339,291 @@ public sealed class HashDbWriter
         SetState(databasePath, "lastPreparedScanSession", scanSession.ToString(CultureInfo.InvariantCulture));
     }
 
-    public void InsertFile(string databasePath, string hash, string filePath, long size, DateTime? exifDate, DateTime? nameDate, DateTime fallbackDate, int scanSession)
+    public void InsertFile(string databasePath, string hash, string filePath, long size, ExifDates exifDates, DateTime? nameDate, DateTime? folderDate, DateTime fallbackDate, DateTime? creationDate, string absolutePath, int scanSession, byte[]? thumbnail = null)
     {
         using var conn = new SqliteConnection($"Data Source={databasePath}");
         conn.Open();
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO SRC(hash, file, size, dtExif, dtFileName, dtFile, scanSession)
-            VALUES($hash, $file, $size, $dtExif, $dtFileName, $dtFile, $scanSession);
-            """;
-
-        cmd.Parameters.AddWithValue("$hash", hash);
-        cmd.Parameters.AddWithValue("$file", filePath);
-        cmd.Parameters.AddWithValue("$size", size);
-        cmd.Parameters.AddWithValue("$dtExif", (object?)exifDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$dtFileName", (object?)nameDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$dtFile", fallbackDate.ToString("yyyy-MM-dd HH:mm:ss"));
-        cmd.Parameters.AddWithValue("$scanSession", scanSession);
-
+        ConfigureInsertCommand(cmd);
+        SetInsertValues(cmd, hash, filePath, size, exifDates, nameDate, folderDate, fallbackDate, creationDate, absolutePath, scanSession, thumbnail);
         cmd.ExecuteNonQuery();
+    }
+
+    public void InsertFile(string databasePath, string hash, string filePath, long size, DateTime? exifDate, DateTime? nameDate, DateTime fallbackDate, int scanSession, byte[]? thumbnail = null)
+    {
+        string absolutePath;
+        if (ArchiveSupport.IsVirtualPath(filePath))
+        {
+            var (archive, entry) = ArchiveSupport.Split(filePath);
+            absolutePath = ArchiveSupport.BuildVirtualPath(Path.GetFullPath(archive), entry);
+        }
+        else
+        {
+            absolutePath = Path.GetFullPath(filePath);
+        }
+
+        InsertFile(
+            databasePath,
+            hash,
+            filePath,
+            size,
+            new ExifDates(exifDate, null, null),
+            nameDate,
+            null,
+            fallbackDate,
+            null,
+            absolutePath,
+            scanSession,
+            thumbnail);
+    }
+
+    public ScanBatchWriter OpenScanBatchWriter(string databasePath)
+    {
+        return new ScanBatchWriter(databasePath);
+    }
+
+    private static void ConfigureInsertCommand(SqliteCommand cmd)
+    {
+        cmd.CommandText = """
+            INSERT OR IGNORE INTO SRC(
+                hash, file, size, dtExif, dtExifOriginal, dtExifDigitized, dtExifDateTime,
+                dtFileName, dtFolderName, dtFile, dtCreation, absolutePath, scanSession, thumbnail)
+            VALUES(
+                $hash, $file, $size, $dtExif, $dtExifOriginal, $dtExifDigitized, $dtExifDateTime,
+                $dtFileName, $dtFolderName, $dtFile, $dtCreation, $absolutePath, $scanSession, $thumbnail);
+            """;
+        cmd.Parameters.Add("$hash", SqliteType.Text);
+        cmd.Parameters.Add("$file", SqliteType.Text);
+        cmd.Parameters.Add("$size", SqliteType.Integer);
+        cmd.Parameters.Add("$dtExif", SqliteType.Text);
+        cmd.Parameters.Add("$dtExifOriginal", SqliteType.Text);
+        cmd.Parameters.Add("$dtExifDigitized", SqliteType.Text);
+        cmd.Parameters.Add("$dtExifDateTime", SqliteType.Text);
+        cmd.Parameters.Add("$dtFileName", SqliteType.Text);
+        cmd.Parameters.Add("$dtFolderName", SqliteType.Text);
+        cmd.Parameters.Add("$dtFile", SqliteType.Text);
+        cmd.Parameters.Add("$dtCreation", SqliteType.Text);
+        cmd.Parameters.Add("$absolutePath", SqliteType.Text);
+        cmd.Parameters.Add("$scanSession", SqliteType.Integer);
+        cmd.Parameters.Add("$thumbnail", SqliteType.Blob);
+    }
+
+    private static void SetInsertValues(
+        SqliteCommand cmd,
+        string hash,
+        string filePath,
+        long size,
+        ExifDates exifDates,
+        DateTime? nameDate,
+        DateTime? folderDate,
+        DateTime fallbackDate,
+        DateTime? creationDate,
+        string absolutePath,
+        int scanSession,
+        byte[]? thumbnail)
+    {
+        cmd.Parameters["$hash"].Value = hash;
+        cmd.Parameters["$file"].Value = filePath;
+        cmd.Parameters["$size"].Value = size;
+        cmd.Parameters["$dtExif"].Value = DbDate(exifDates.Preferred);
+        cmd.Parameters["$dtExifOriginal"].Value = DbDate(exifDates.Original);
+        cmd.Parameters["$dtExifDigitized"].Value = DbDate(exifDates.Digitized);
+        cmd.Parameters["$dtExifDateTime"].Value = DbDate(exifDates.Generic);
+        cmd.Parameters["$dtFileName"].Value = DbDate(nameDate);
+        cmd.Parameters["$dtFolderName"].Value = DbDate(folderDate);
+        cmd.Parameters["$dtFile"].Value = DbDate(fallbackDate);
+        cmd.Parameters["$dtCreation"].Value = DbDate(creationDate);
+        cmd.Parameters["$absolutePath"].Value = absolutePath;
+        cmd.Parameters["$scanSession"].Value = scanSession;
+        cmd.Parameters["$thumbnail"].Value = (object?)thumbnail ?? DBNull.Value;
+    }
+
+    private static object DbDate(DateTime? date)
+    {
+        return date?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? (object)DBNull.Value;
+    }
+
+    public sealed class ScanBatchWriter : IDisposable
+    {
+        private const int BatchSize = 256;
+        private readonly SqliteConnection _connection;
+        private SqliteTransaction? _transaction;
+        private SqliteCommand? _command;
+        private SqliteCommand? _metadataCommand;
+        private int _pendingRows;
+        private bool _disposed;
+
+        internal ScanBatchWriter(string databasePath)
+        {
+            _connection = new SqliteConnection($"Data Source={databasePath}");
+            _connection.Open();
+            try
+            {
+                StartBatch();
+            }
+            catch
+            {
+                _connection.Dispose();
+                throw;
+            }
+        }
+
+        public void InsertFile(
+            string hash,
+            string filePath,
+            long size,
+            ExifDates exifDates,
+            DateTime? nameDate,
+            DateTime? folderDate,
+            DateTime fallbackDate,
+            DateTime? creationDate,
+            string absolutePath,
+            int scanSession,
+            byte[]? thumbnail = null)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var command = _command ?? throw new InvalidOperationException("La transazione di scansione non è attiva.");
+            SetInsertValues(command, hash, filePath, size, exifDates, nameDate, folderDate, fallbackDate, creationDate, absolutePath, scanSession, thumbnail);
+            command.ExecuteNonQuery();
+
+            if (++_pendingRows >= BatchSize)
+            {
+                CommitBatch();
+                StartBatch();
+            }
+        }
+
+        public bool InsertFileBasic(
+            string hash,
+            string filePath,
+            long size,
+            DateTime? nameDate,
+            DateTime? folderDate,
+            DateTime fallbackDate,
+            DateTime? creationDate,
+            string absolutePath,
+            int scanSession)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var command = _command ?? throw new InvalidOperationException("La transazione di scansione non è attiva.");
+            SetInsertValues(
+                command,
+                hash,
+                filePath,
+                size,
+                default,
+                nameDate,
+                folderDate,
+                fallbackDate,
+                creationDate,
+                absolutePath,
+                scanSession,
+                null);
+            var inserted = command.ExecuteNonQuery() > 0;
+            if (inserted)
+            {
+                CompleteRow();
+            }
+
+            return inserted;
+        }
+
+        public void UpdateMetadata(string hash, string filePath, ExifDates exifDates, byte[]? thumbnail)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var command = _metadataCommand ?? throw new InvalidOperationException("La transazione di scansione non è attiva.");
+            command.Parameters["$dtExif"].Value = DbDate(exifDates.Preferred);
+            command.Parameters["$dtExifOriginal"].Value = DbDate(exifDates.Original);
+            command.Parameters["$dtExifDigitized"].Value = DbDate(exifDates.Digitized);
+            command.Parameters["$dtExifDateTime"].Value = DbDate(exifDates.Generic);
+            command.Parameters["$thumbnail"].Value = (object?)thumbnail ?? DBNull.Value;
+            command.Parameters["$hash"].Value = hash;
+            command.Parameters["$file"].Value = filePath;
+            if (command.ExecuteNonQuery() > 0)
+            {
+                CompleteRow();
+            }
+        }
+
+        private void CompleteRow()
+        {
+            if (++_pendingRows >= BatchSize)
+            {
+                CommitBatch();
+                StartBatch();
+            }
+        }
+
+        private void StartBatch()
+        {
+            _transaction = _connection.BeginTransaction();
+            _command = _connection.CreateCommand();
+            _command.Transaction = _transaction;
+            ConfigureInsertCommand(_command);
+            _command.Prepare();
+
+            _metadataCommand = _connection.CreateCommand();
+            _metadataCommand.Transaction = _transaction;
+            _metadataCommand.CommandText = """
+                UPDATE SRC
+                SET
+                    dtExif = coalesce(nullif(trim(dtExif), ''), $dtExif),
+                    dtExifOriginal = coalesce(nullif(trim(dtExifOriginal), ''), $dtExifOriginal),
+                    dtExifDigitized = coalesce(nullif(trim(dtExifDigitized), ''), $dtExifDigitized),
+                    dtExifDateTime = coalesce(nullif(trim(dtExifDateTime), ''), $dtExifDateTime),
+                    thumbnail = coalesce(thumbnail, $thumbnail)
+                WHERE hash = $hash AND file = $file;
+                """;
+            _metadataCommand.Parameters.Add("$dtExif", SqliteType.Text);
+            _metadataCommand.Parameters.Add("$dtExifOriginal", SqliteType.Text);
+            _metadataCommand.Parameters.Add("$dtExifDigitized", SqliteType.Text);
+            _metadataCommand.Parameters.Add("$dtExifDateTime", SqliteType.Text);
+            _metadataCommand.Parameters.Add("$thumbnail", SqliteType.Blob);
+            _metadataCommand.Parameters.Add("$hash", SqliteType.Text);
+            _metadataCommand.Parameters.Add("$file", SqliteType.Text);
+            _metadataCommand.Prepare();
+        }
+
+        private void CommitBatch()
+        {
+            _command?.Dispose();
+            _command = null;
+            _metadataCommand?.Dispose();
+            _metadataCommand = null;
+            _transaction?.Commit();
+            _transaction?.Dispose();
+            _transaction = null;
+            _pendingRows = 0;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            try
+            {
+                _command?.Dispose();
+                _metadataCommand?.Dispose();
+                if (_pendingRows > 0)
+                {
+                    _transaction?.Commit();
+                }
+                else
+                {
+                    _transaction?.Rollback();
+                }
+            }
+            finally
+            {
+                _transaction?.Dispose();
+                _connection.Dispose();
+                _disposed = true;
+            }
+        }
     }
 
     public HashPreparationResult PrepareHashFromScanSession(
@@ -272,22 +674,17 @@ public sealed class HashDbWriter
             select.CommandText = """
                 WITH ranked AS (
                     SELECT
-                        hash,
-                        file,
-                        coalesce(dtExif, dtFileName, dtFile) AS data_acquisizione,
+                        s.hash,
+                        s.file,
+                        v.data_acquisizione,
                         row_number() OVER (
-                            PARTITION BY hash
-                            ORDER BY
-                                CASE
-                                    WHEN dtExif IS NOT NULL THEN 0
-                                    WHEN dtFileName IS NOT NULL THEN 1
-                                    ELSE 2
-                                END,
-                                coalesce(dtExif, dtFileName, dtFile),
-                                file
+                            PARTITION BY s.hash
+                            ORDER BY s.file
                         ) AS rn
-                    FROM SRC
-                    WHERE scanSession = $scanSession
+                    FROM SRC s
+                    INNER JOIN V_HASH_ACQUISITION_DATE v
+                        ON v.hash = s.hash
+                    WHERE s.scanSession = $scanSession
                 )
                 SELECT
                     ranked.hash,
@@ -357,11 +754,13 @@ public sealed class HashDbWriter
             }
 
             var fileName = Path.GetFileName(row.FilePathSrc);
-            var acqDate = TryParseAcqDate(row.AcqDateRaw)
-                ?? File.GetLastWriteTime(row.FilePathSrc);
-
-            var relativeFolder = BuildDestinationRelativeFolder(destinationTemplate, acqDate);
-            var filePathDst = Path.Combine(destinationRoot, relativeFolder, fileName);
+            var acqDate = TryParseAcqDate(row.AcqDateRaw);
+            var relativeFolder = acqDate.HasValue
+                ? BuildDestinationRelativeFolder(destinationTemplate, acqDate.Value)
+                : string.Empty;
+            var filePathDst = string.IsNullOrWhiteSpace(relativeFolder)
+                ? Path.Combine(destinationRoot, fileName)
+                : Path.Combine(destinationRoot, relativeFolder, fileName);
 
             var album = albumMap.TryGetValue(row.Hash, out var foldersForHash)
                 ? string.Join(',', foldersForHash.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
