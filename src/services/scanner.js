@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { writeArchiveFiles, readSomeRecords } from "./scan-archive.cjs";
-import {analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+import { analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -37,14 +37,15 @@ export async function analisiByName(parametri) {
   }
   console.log(`Loaded ${files.length} files from ${archivePath}`);
   const hashFile = {};
-  const hashName = {};
+  const nameFile = {};
   for (const file of files) {
     if (!hashFile[file.hash]) hashFile[file.hash] = [];
     hashFile[file.hash].push(file);
-    if (!hashName[file.name]) hashName[file.name] = [];
-    hashName[file.name].push(file);
+    if (!nameFile[file.destPath+"-"+file.name]) nameFile[file.destPath+"-" +file.name] = [];
+    nameFile[file.destPath+"-"+file.name].push(file);
   }
   let pendingFiles = [];
+  /*
   for (const hash in hashFile) {
     if (hashFile[hash].length > 1) {
       let file = hashFile[hash][0];
@@ -64,6 +65,32 @@ export async function analisiByName(parametri) {
   }
   if (pendingFiles.length > 0) {
     //await writeArchiveFiles(archivePath, pendingFiles);
+    pendingFiles = [];
+  }
+  */
+  pendingFiles = [];
+  for (const name in nameFile) {
+    if (nameFile[name].length > 1) {
+      let file = nameFile[name][0];
+      file.valido = 1;
+      for (let i = 1; i < nameFile[name].length; i++) {
+        nameFile[name][i].valido = 0;
+        if (nameFile[name][i].size > file.size) {
+          nameFile[name][i].valido = 1;
+
+          file.valido = 0;
+          pendingFiles.push(file);
+
+          file = nameFile[name][i];
+          pendingFiles.push(file);
+        }
+      }
+      if (parametri.verbose) console.log(`Duplicate name found for file: ${nameFile[name].map(f => f.name+"-"+f.valido+"-"+f.size+"-"+f.dt_valida).join(",\n  ")}\n `);
+
+    }
+  }
+  if (pendingFiles.length > 0) {
+    await writeArchiveFiles(archivePath, pendingFiles);
     pendingFiles = [];
   }
 }
