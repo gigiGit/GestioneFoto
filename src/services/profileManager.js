@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import fsp from "node:fs/promises";
 import { fileURLToPath } from 'node:url';
-
+import os from 'node:os';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -12,10 +12,27 @@ const PROFILES_DIR = path.resolve(
     __dirname,
     '../data/profiles'
 );
-function getProfilesDirectory() {
+const profiloDefault={
+      archive: "archive",
+  sourceFolders: path.join(os.homedir(), "Pictures"),
+  destDir: "C:\\ArchivioFoto",
+  scanDir: "scan",
+  backupPath: "backup",
+  albumPath: "album",
+  batchSize: 500,
+  minSize: 0,
+  verbose: 0,
+  simulazione: true,
+  force:false,
+  formato: "YYYYMMDD",
+  filters: null,
+  extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf",'.JPG',
+    ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+}
+export function getProfilesDirectory() {
   return process.env.GESTIONEFOTO_PROFILES_DIR
     ? path.resolve(process.env.GESTIONEFOTO_PROFILES_DIR)
-    : path.join(process.env.USERPROFILE || require("node:os").homedir(), ".gestione-foto-3", "profiles");
+    : path.join(process.env.USERPROFILE || require("node:os").homedir(), ".gestione-foto", "profiles");
 }
 // --------------------------------------------------
 // Inizializzazione directory
@@ -30,19 +47,10 @@ async function ensureProfilesDirectory() {
 // --------------------------------------------------
 
 export function createDefaultProfile(id = 'default') {
-    return {
-        id,
-        name: 'Profilo predefinito',
-        description: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        settings: {
-            photoDirectory: '',
-            thumbnailDirectory: '',
-            recursive: true,
-            extensions: ['jpg', 'jpeg', 'png', 'tiff', 'bmp']
-        }
-    };
+    profiloDefault.id = id;
+    profiloDefault.createdAt = new Date().toISOString();
+    profiloDefault.updatedAt = new Date().toISOString();
+    return profiloDefault;
 }
 
 // --------------------------------------------------
@@ -107,7 +115,7 @@ export async function saveProfile(profile) {
     if (!profile || typeof profile !== 'object') {
         throw new Error('Profilo non valido');
     }
-
+    
     validateProfileId(profile.name);
 
     await ensureProfilesDirectory();

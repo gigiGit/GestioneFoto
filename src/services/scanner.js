@@ -1,8 +1,8 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import {  writeArchiveFiles, readSomeRecords } from "./scan-archive.cjs";
-import { linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+import { writeArchiveFiles, readSomeRecords } from "./scan-archive.cjs";
+import {analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -10,7 +10,7 @@ export const SCAN_FILE_NAME = "scan.json";
  * @returns {Promise<{ scanFile: string, files: object[] }>}
  */
 function canCreateSymlinks(targetDir) {
-const testLink = path.join(targetDir, `.symlink_test_${Date.now()}`);
+  const testLink = path.join(targetDir, `.symlink_test_${Date.now()}`);
   try {
     // Tenta di creare un symlink fittizio nella cartella
     fs.symlinkSync('.', testLink);
@@ -26,6 +26,48 @@ async function noLink(file, pendingFiles, option) {
   console.warn(`Cannot create symlinks for file: ${file.fullname}`);
   return false;
 }
+export async function analisiByName(parametri) {
+  const files = [];
+  const archivePath = path.join(parametri.destDir, parametri.archive);
+  try {
+    fs.accessSync(archivePath);
+    files.push(...await readSomeRecords(archivePath, parametri.filters));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  console.log(`Loaded ${files.length} files from ${archivePath}`);
+  const hashFile = {};
+  const hashName = {};
+  for (const file of files) {
+    if (!hashFile[file.hash]) hashFile[file.hash] = [];
+    hashFile[file.hash].push(file);
+    if (!hashName[file.name]) hashName[file.name] = [];
+    hashName[file.name].push(file);
+  }
+  let pendingFiles = [];
+  for (const hash in hashFile) {
+    if (hashFile[hash].length > 1) {
+      let file = hashFile[hash][0];
+      file.valido = true;
+      for (let i = 1; i < hashFile[hash].length; i++) {
+        hashFile[hash][i].valido = false;
+        if (hashFile[hash][i].dt_valida < file.dt_valida) {
+          file.valido = false;
+          pendingFiles.push(file);
+          file = hashFile[hash][i];
+          file.valido = true;
+          pendingFiles.push(file);
+        }
+      }
+      if(parametri.verbose) console.log(`Duplicate hash found for file: ${hashFile[hash].map(f => f.fullname).join(", ")}\n  scelto: ${file.fullname}`);
+    }
+  }
+  if (pendingFiles.length > 0) {
+    //await writeArchiveFiles(archivePath, pendingFiles);
+    pendingFiles = [];
+  }
+}
+
 export async function analisiFromArchive(funcName, parametri) {
   let count = 0;
   let errorCount = 0;
@@ -35,7 +77,7 @@ export async function analisiFromArchive(funcName, parametri) {
   const archivePath = path.join(parametri.destDir, parametri.archive);
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath,parametri.filters));
+    files.push(...await readSomeRecords(archivePath, parametri.filters));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
@@ -45,15 +87,16 @@ export async function analisiFromArchive(funcName, parametri) {
   switch (funcName) {
     case "exif": cb = analisiExif; break;
     case "thumbnail": cb = analisiThumbnail; break;
+    case "analisiDest": cb = analisiDest; break;
     case "linkAlbum":
-      cb = linkAlbum; 
+      cb = linkAlbum;
       if (!canCreateSymlinks(parametri.destDir)) {
-        cb=noLink;
+        cb = noLink;
       }
 
-    break;
+      break;
     case "copia": cb = copia; break;
-    case "analisiDate": cb = analisiDate;break;
+    case "analisiDate": cb = analisiDate; break;
     case "hash": cb = hashFile; break;
     case "analisiAlbum": cb = analisiAlbum; break;
     default:
@@ -99,8 +142,8 @@ export async function scanSource(parametri) {
   const pathFile = {};
   const archivePath = path.join(parametri.destDir, parametri.archive);
   console.log("SourceDir:", parametri.sourceFolders, "\nArchive:", parametri.archive, "\nDestDir:", parametri.destDir, "\nArchivePath:", archivePath);
+  const files = [];
   try {
-    const files = [];
     fs.accessSync(archivePath);
     files.push(...await readSomeRecords(archivePath));
     for (const file of files) {
@@ -125,7 +168,7 @@ export async function scanSource(parametri) {
         console.log(filePath, "Album from Photos from YYYY", anno[1]);
         return [anno[1]];
       }
-      if(dirs[2]) {
+      if (dirs[2]) {
         console.log(filePath, "takeout subdir", dirs[2]);
         return [dirs[2]];
       }

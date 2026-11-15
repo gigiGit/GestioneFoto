@@ -22,6 +22,24 @@ export async function changeFileDate(file, pendingFiles, { force = false, destDi
 
 export async function copia(file, pendingFiles, { force = false, destDir, backupPath, formato, verbose }) {
     if (!file.valido && !file.dt_valida) return false;
+        const destPath = path.join(destDir, backupPath, file.destPath, file.name);
+
+    if (fs.existsSync(destPath)) {
+        return false;
+    }
+    try {
+        if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
+        fs.mkdirSync(path.dirname(destPath), { recursive: true });
+        fs.copyFileSync(file.fullname, destPath);
+        return true;
+    } catch (error) {
+        console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
+        return false;
+    }
+}
+
+export async function analisiDest(file, pendingFiles, { force = false, destDir, backupPath, formato, verbose }) {
+    if (!file.valido && !file.dt_valida) return false;
     const data = new Date(file.dt_valida)
     const anno = data.getFullYear();
     const mese = data.toLocaleString('it-IT', { month: 'long' }); // "novembre" (usa 'short' per "nov")
@@ -36,7 +54,7 @@ export async function copia(file, pendingFiles, { force = false, destDir, backup
         return true;
     }
     // Implement the copy functionality here
-    try {
+/*    try {
         if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.copyFileSync(file.fullname, destPath);
@@ -47,6 +65,7 @@ export async function copia(file, pendingFiles, { force = false, destDir, backup
         console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
         return false;
     }
+}*/ 
 }
 export async function hashFile(file, pendingFiles, { force = false }) {
     if (!force && file.hash) return false;
@@ -256,13 +275,24 @@ export function recuperaDataDaNome(file) {
     if (filename.startsWith("giuliano")) {
         return "1961-01-07T00:00:00.000Z";
     }
+    var patt1=[/(\d{13})\.jpg/]
     var patt6 = [/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/, /(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
         /screenshot_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, /vid_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
-        /vid-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/];
+        /vid-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/,
+         /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
+        /img.(\d{4})_(\d{2})_(\d{2}).(\d{2})_(\d{2})_(\d{2})/];
     var patt3 = [/img-(\d{4})(\d{2})(\d{2})-wa/,
         /vid-(\d{4})(\d{2})(\d{2})-wa/
     ];
-
+    
+    for (const p of patt1) {
+        if (filename.match(p)) {
+            var dateArray = filename.match(p);
+            if (dateArray.length < 2) continue;
+            var date = new Date(Number(dateArray[1]));
+            return toLocalISOString(date);
+        }
+    }
     for (const p of patt6) {
         if (filename.match(p)) {
             var dateArray = filename.match(p);
