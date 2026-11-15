@@ -39,7 +39,6 @@ const profilo_roberto = {
 }
 await saveProfile(profilo_giuliano);
 //await saveProfile(profilo_roberto);
-
 //const profile_dir=getProfilesDirectory();
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
