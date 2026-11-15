@@ -34,33 +34,6 @@ import {
 
 
 const archiveByProfile = new Map();
-const pendingScans = new Map();
-
-
-export async function initializeArchiveCache() {
-    const profileFiles = await listProfiles();
-    for (const profileFile of profileFiles) {
-        if (!profileFile.isFile() || !profileFile.name.toLowerCase().endsWith('.json')) continue;
-        let profile;
-        try {
-            profile = JSON.parse(fs.readFileSync(path.join(profileFile.parentPath, profileFile.name), 'utf8'));
-        } catch (error) {
-            console.error(`Profilo non valido ${profileFile.name}:`, error);
-            continue;
-        }
-        if (!profile.name) continue;
-        const normalizedProfile = { ...createDefaultProfile(), ...profile };
-        profili[profile.name] = normalizedProfile;
-        if (typeof normalizedProfile.archive !== 'string' || !normalizedProfile.archive.trim()) continue;
-        try {
-            const records = await loadProfileArchive(profile.name, normalizedProfile.archive);
-            console.log(`Precaricati ${records.length} record per il profilo ${profile.name}`);
-        } catch (error) {
-            throw new Error(`Impossibile precaricare l'archivio del profilo ${profile.name}`, { cause: error });
-        }
-    }
-}
-
 
 
 router.get("/profiles", async (req, res) => {
@@ -243,58 +216,24 @@ function filterArchiveRecords(sourceFiles, filters) {
     return records;
 }
 let pathFile = {};
-router.post("/preview/list", async (req, res) => {
-    const { destDir, archive } = req.body;
+let files = [];
+async function loadFiles(destDir, archive) {
     const archivePath = path.join(destDir, archive);
-    console.log("/preview/list: called", archivePath);
-    let files = [];
-
-    try {
+    if(files==null || files.length === 0) {
         fs.accessSync(archivePath);
         files = await readSomeRecords(archivePath);
-        pathFile = {};
-        for (const file of files) {
-            pathFile[file.fullname] = file;
-        }
+    }
+    return files;
+}
+router.post("/preview/list", async (req, res) => {
+    const { destDir, archive } = req.body;
+    try {
+        files = await loadFiles(destDir, archive);
         console.log("/preview/list: called", files.length, archivePath);
-        res.json(Object.keys(pathFile));
+        res.json(files.map(file => file.fullname));
     } catch (error) {
         console.error("/preview/list:", error);
         res.status(500).json({ error: "Errore durante la ricerca" });
-    }
-});
-
-router.post("/records/duplicates/select", async (req, res) => {
-    const profileName = typeof req.body?.profileName === "string" ? req.body.profileName : "";
-    const fullname = typeof req.body?.fullname === "string" ? req.body.fullname : "";
-    if (!profileName || !fullname) {
-        return res.status(400).json({ error: "profileName e fullname sono obbligatori" });
-    }
-
-    //await waitForScans(profileName);
-    const archivePath = archiveByProfile.get(profileName);
-    if (!archivePath) return res.status(404).json({ error: "Archivio del profilo non disponibile" });
-    if (pendingScans.has(archivePath)) {
-        return res.status(409).json({ error: "È già in corso un aggiornamento dell'archivio" });
-    }
-
-    const records = getCachedRecords(profileName);
-    const selected = records.find(file => file.fullname === fullname);
-    if (!selected?.hash) return res.status(404).json({ error: "File o hash non disponibile" });
-    const duplicateCount = records.filter(file => file.hash === selected.hash).length;
-    if (duplicateCount < 2) return res.status(409).json({ error: "Il file non appartiene a un gruppo di duplicati" });
-
-    const updatePromise = selectValidDuplicate(archivePath, { fullname, hash: selected.hash });
-    pendingScans.set(archivePath, updatePromise);
-    try {
-        await updatePromise;
-        //await reloadArchiveProfiles(archivePath);
-        res.json({ success: true, fullname, duplicateCount });
-    } catch (error) {
-        console.error("Errore selezione duplicato:", error);
-        res.status(500).json({ error: error.message });
-    } finally {
-        if (pendingScans.get(archivePath) === updatePromise) pendingScans.delete(archivePath);
     }
 });
 
@@ -313,16 +252,12 @@ router.post("/records/update", async (req, res) => {
     //await waitForScans(profileName);
     const archivePath = archiveByProfile.get(profileName);
     if (!archivePath) return res.status(404).json({ error: "Archivio del profilo non disponibile" });
-    if (pendingScans.has(archivePath)) {
-        return res.status(409).json({ error: "È già in corso un aggiornamento dell'archivio" });
-    }
 
     const updatePromise = updateArchiveRecord(archivePath, {
         fullname,
         dtValida: dtValida ? new Date(dtValida).toISOString() : null,
         valido
     });
-    pendingScans.set(archivePath, updatePromise);
     try {
         const record = await updatePromise;
         //await reloadArchiveProfiles(archivePath);
@@ -334,7 +269,7 @@ router.post("/records/update", async (req, res) => {
         console.error("Errore aggiornamento record:", error);
         res.status(500).json({ error: error.message });
     } finally {
-        if (pendingScans.get(archivePath) === updatePromise) pendingScans.delete(archivePath);
+       
     }
 });
 

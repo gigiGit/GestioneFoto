@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API
-import apiRoutes, { initializeArchiveCache } from './routes/api.js';
+import apiRoutes from './routes/api.js';
 app.use('/api', apiRoutes);
 
 // Pagina principale
