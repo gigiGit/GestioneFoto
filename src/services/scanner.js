@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { writeArchiveFiles, readSomeRecords } from "./scan-archive.cjs";
-import { analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+import {calcolaDHashHex, changeFileDate,analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -126,6 +126,8 @@ export async function analisiFromArchive(funcName, parametri) {
     case "analisiDate": cb = analisiDate; break;
     case "hash": cb = hashFile; break;
     case "analisiAlbum": cb = analisiAlbum; break;
+    case "changeFileDate": cb = changeFileDate; break;
+    case "dhash": cb = calcolaDHashHex; break;
     default:
       throw new Error(`Invalid function name: ${funcName}`);
   }

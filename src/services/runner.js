@@ -4,12 +4,40 @@ import sharp from "sharp";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
+
+export async function calcolaDHashHex(file, pendingFiles, { force = false, destDir, backupPath, formato, verbose }) {
+    const filePath = file.fullname;
+    try {
+        const { data } = await sharp(filePath)
+            .rotate()
+            .resize(9, 8, { fit: 'fill' })
+            .grayscale()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        let bin = '';
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 8; x++) {
+                bin += data[y * 9 + x] > data[y * 9 + (x + 1)] ? '1' : '0';
+            }
+        }
+
+        // Converte i 64 bit in 16 caratteri esadecimali usando BigInt
+        file.dhash = BigInt('0b' + bin).toString(16).padStart(16, '0');
+        pendingFiles.push(file);
+        return true;
+    } catch (error) {
+        console.error(`Error calculating dHash for file ${filePath}:`, error);
+        return false;
+    }
+}
 export async function changeFileDate(file, pendingFiles, { force = false, destDir, backupPath, formato, verbose }) {
     if (!file.valido && !file.dt_valida) return false;
     const data = new Date(file.dt_valida)
     const destPath = path.join(destDir, backupPath, file.destPath, file.name);
+    if (!fs.existsSync(destPath)) return false;
     try {
-        if(verbose>1) console.log(`Changing file date for ${destPath}:`, data);
+        if (verbose > 1) console.log(`Changing file date for ${destPath}:`, data);
         fs.utimesSync(destPath, data, data);
         file.createdAt = file.dt_valida;
         pendingFiles.push(file);
@@ -22,7 +50,7 @@ export async function changeFileDate(file, pendingFiles, { force = false, destDi
 
 export async function copia(file, pendingFiles, { force = false, destDir, backupPath, formato, verbose }) {
     if (!file.valido && !file.dt_valida) return false;
-        const destPath = path.join(destDir, backupPath, file.destPath, file.name);
+    const destPath = path.join(destDir, backupPath, file.destPath, file.name);
 
     if (fs.existsSync(destPath)) {
         return false;
@@ -47,25 +75,23 @@ export async function analisiDest(file, pendingFiles, { force = false, destDir, 
     const dataFormattata = formato === "YYYYMMDD" ? `${anno}${path.sep}${mese}${path.sep}${giorno}` : `${anno}${path.sep}${mese}`;
     const destinationDir = dataFormattata;
     const destPath = path.join(destDir, backupPath, destinationDir, file.name);
-    if (fs.existsSync(destPath)) {
-        if (file.destPath) return false;
-        file.destPath = destinationDir;
-        pendingFiles.push(file);
-        return true;
-    }
+    if (file.destPath) return false;
+    file.destPath = destinationDir;
+    pendingFiles.push(file);
+    return true;
     // Implement the copy functionality here
-/*    try {
-        if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
-        fs.mkdirSync(path.dirname(destPath), { recursive: true });
-        fs.copyFileSync(file.fullname, destPath);
-        file.destPath = destinationDir;
-        pendingFiles.push(file);
-        return true;
-    } catch (error) {
-        console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
-        return false;
-    }
-}*/ 
+    /*    try {
+            if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
+            fs.mkdirSync(path.dirname(destPath), { recursive: true });
+            fs.copyFileSync(file.fullname, destPath);
+            file.destPath = destinationDir;
+            pendingFiles.push(file);
+            return true;
+        } catch (error) {
+            console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
+            return false;
+        }
+    }*/
 }
 export async function hashFile(file, pendingFiles, { force = false }) {
     if (!force && file.hash) return false;
@@ -275,16 +301,16 @@ export function recuperaDataDaNome(file) {
     if (filename.startsWith("giuliano")) {
         return "1961-01-07T00:00:00.000Z";
     }
-    var patt1=[/(\d{13})\.jpg/]
+    var patt1 = [/(\d{13})\.jpg/]
     var patt6 = [/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/, /(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
         /screenshot_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, /vid_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
         /vid-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/,
-         /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
+        /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
         /img.(\d{4})_(\d{2})_(\d{2}).(\d{2})_(\d{2})_(\d{2})/];
     var patt3 = [/img-(\d{4})(\d{2})(\d{2})-wa/,
         /vid-(\d{4})(\d{2})(\d{2})-wa/
     ];
-    
+
     for (const p of patt1) {
         if (filename.match(p)) {
             var dateArray = filename.match(p);

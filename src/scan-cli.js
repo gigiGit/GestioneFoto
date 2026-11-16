@@ -36,11 +36,11 @@ const profilo_roberto = {
 }
 const profilo = profilo_roberto;
 //await scanSource(profilo).then(result => console.log("Scan completed. Files found:", result.length));
-//const job = "changeFileDate";
-//await analisiFromArchive(job, profilo).then(result => console.log("Job:", job, "\nFiles Elaborati:", result.count, "\nErrori:", result.errorCount,"\nConteggio:",result.files.length,"\nReadTime:", result.readTime,"\nScanTime:", result.scanTime,"\nTotalTime:", result.TotalTime));
-
-for( const job of ["hash", "thumbnail", "exif","analisiDate", "analisiAlbum", "copia", "changeFileDate"]) {
+const job = "analisiDest";
+await analisiFromArchive(job, profilo).then(result => console.log("Job:", job, "\nFiles Elaborati:", result.count, "\nErrori:", result.errorCount,"\nConteggio:",result.files.length,"\nReadTime:", result.readTime,"\nScanTime:", result.scanTime,"\nTotalTime:", result.TotalTime));
+/*
+for( const job of ["hash", "thumbnail", "exif","analisiDate", "analisiAlbum", "analisiDest", "changeFileDate"]) {
   console.log("---------------------------------------------");
   await analisiFromArchive(job, profilo).then(result => console.log("Job:", job, "\nFiles Elaborati:", result.count, "\nErrori:", result.errorCount,"\nConteggio:",result.files.length,"\nReadTime:", result.readTime,"\nScanTime:", result.scanTime,"\nTotalTime:", result.TotalTime));
 } 
-
+*/

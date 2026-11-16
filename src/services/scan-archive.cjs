@@ -6,9 +6,9 @@ const IMAGE_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".png", ".webp", ".heic", ".heif", ".avif"
 ]);
 const INSERT_SQL = `INSERT INTO raw_files (
-  hash, fullname, name, ext, dt_valida, size, createdAt,
+  hash,dhash, fullname, name, ext, dt_valida, size, createdAt,
   exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, albums,valido,destPath
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 function run(db, sql, values = []) {
   return new Promise((resolve, reject) => {
@@ -21,7 +21,7 @@ function run(db, sql, values = []) {
 
 async function upsertFiles(db, files) {
   const columns = [
-    "hash", "fullname", "name", "ext", "dt_valida", "size", "createdAt",
+    "hash", "dhash", "fullname", "name", "ext", "dt_valida", "size", "createdAt",
     "exifCreateDate", "exifDateTimeOriginal", "exifGPSDateStamp", "exifModifyDate",
     "thumbnail", "albums", "valido", "destPath"
   ];
@@ -224,7 +224,7 @@ async function listArchivedFiles(archivePath, { search = "", extension = "", dat
     const count = await get(db, `SELECT COUNT(*) AS total FROM raw_files ${where}`, values);
     const records = await all(
       db,
-      `SELECT rowid AS recordId, hash, fullname, name, ext, dt_valida, size, createdAt,
+      `SELECT rowid AS recordId, hash, dhash,fullname, name, ext, dt_valida, size, createdAt,
               exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, ${albumsColumn},valido,destPath
        FROM raw_files ${where}
        ORDER BY dt_valida DESC, name COLLATE NOCASE
@@ -259,7 +259,7 @@ async function updateArchivedFile(archivePath, { recordId, dtValida, albums }) {
 
       const record = await get(
         db,
-        `SELECT rowid AS recordId, hash, fullname, name, ext, dt_valida, size, createdAt,
+        `SELECT rowid AS recordId, hash, dhash,fullname, name, ext, dt_valida, size, createdAt,
                 exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, albums,valido,destPath
          FROM raw_files WHERE rowid = ?`,
         [recordId]
@@ -315,7 +315,7 @@ async function updateArchiveRecord(archivePath, { fullname, dtValida, valido }) 
 
       const record = await get(
         db,
-        `SELECT rowid AS recordId, hash, fullname, name, ext, dt_valida, size, createdAt,
+        `SELECT rowid AS recordId, hash,dhash, fullname, name, ext, dt_valida, size, createdAt,
                 exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, albums, valido,destPath
          FROM raw_files WHERE fullname = ?`,
         [fullname]
@@ -370,6 +370,7 @@ async function selectValidDuplicate(archivePath, { fullname, hash }) {
 async function initDB(db) {
   const SQL = `CREATE TABLE IF NOT EXISTS raw_files (
     hash TEXT,
+    dhash TEXT,
     fullname TEXT,
     name TEXT,
     ext TEXT,
@@ -393,6 +394,9 @@ async function initDB(db) {
     if (!columns.some(column => column.name === "valido")) {
       await run(db, "ALTER TABLE raw_files ADD COLUMN valido INTEGER");
     }
+    if (!columns.some(column => column.name === "dhash")) {
+      await run(db, "ALTER TABLE raw_files ADD COLUMN dhash TEXT");      
+    }
   } catch (error) {
     throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
   }
@@ -405,6 +409,7 @@ async function batchUpdate(db, file) {
 
   const values = [
     file.hash,
+    file.dhash,
     file.fullname,
     file.name,
     file.ext,
