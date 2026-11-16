@@ -34,7 +34,7 @@ import {
 
 
 const archiveByProfile = new Map();
-
+let records = [];
 
 router.get("/profiles", async (req, res) => {
     console.log("/profiles")
@@ -180,57 +180,36 @@ function recordDate(value) {
     return Number.isNaN(parsedDate.getTime()) ? "" : parsedDate.toISOString().slice(0, 10);
 }
 
-function filterArchiveRecords(sourceFiles, filters) {
-    const name = filters.name?.toLowerCase();
-    const album = filters.album?.toLowerCase();
-    const duplicateHashes = new Set();
-    if (filters.duplicates) {
-        const hashCounts = new Map();
-        for (const file of sourceFiles) {
-            if (typeof file.hash === "string" && file.hash) {
-                hashCounts.set(file.hash, (hashCounts.get(file.hash) ?? 0) + 1);
-            }
-        }
-        for (const [hash, count] of hashCounts) {
-            if (count > 1) duplicateHashes.add(hash);
-        }
-    }
-    const records = sourceFiles.filter(file => {
-        if (filters.duplicates && (!file.hash || !duplicateHashes.has(file.hash))) return false;
-        if (name && !String(file.fullname ?? "").toLowerCase().includes(name)) return false;
-        if (filters.ext && String(file.ext ?? "").toLowerCase() !== filters.ext) return false;
-        if (album && !(Array.isArray(file.albums) && file.albums.some(value => String(value).toLowerCase() === album))) return false;
-        const date = recordDate(file.dt_valida);
-        if (filters.dateFrom && (!date || date < filters.dateFrom)) return false;
-        if (filters.dateTo && (!date || date > filters.dateTo)) return false;
-        if (filters.minSize !== undefined && Number(file.size ?? 0) < filters.minSize) return false;
-        if (filters.valido !== undefined && (file.valido === null || file.valido === undefined || Number(file.valido) !== filters.valido)) return false;
-        return true;
-    });
-    const compareName = (left, right) => String(left.name ?? "").localeCompare(String(right.name ?? ""), undefined, { sensitivity: "base" });
-    records.sort((left, right) => {
-        if (filters.orderBy === "name") return compareName(left, right);
-        if (filters.orderBy === "size") return Number(right.size ?? 0) - Number(left.size ?? 0) || compareName(left, right);
-        return recordDate(right.dt_valida).localeCompare(recordDate(left.dt_valida)) || compareName(left, right);
-    });
-    return records;
-}
+
 let pathFile = {};
-let files = [];
-async function loadFiles(destDir, archive) {
+
+async function loadFiles(destDir, archive, filters) {
+    console.log("loadFiles called with destDir:", destDir, "archive:", archive, "filters:", filters);
     const archivePath = path.join(destDir, archive);
-    if(files==null || files.length === 0) {
-        fs.accessSync(archivePath);
-        files = await readSomeRecords(archivePath);
+    let filtri="1=1";
+    if (filters !== null && typeof filters === "object") {
+    if(filters.name) filtri+= " and name like '%" + filters.name + "%' ";
+    if(filters.ext) filtri+= " and ext = '" + filters.ext + "' ";
+    if(filters.album) filtri+= " and album like '%" + filters.album + "%' ";
+    if(filters.dateFrom) filtri+= " and dt_valida >= '" + filters.dateFrom + "' ";
+    if(filters.dateTo) filtri+= " and dt_valida <= '" + filters.dateTo + "' ";
+    if(filters.minSize) filtri+= " and size >= " + filters.minSize + " ";
+    if(filters.valido !== undefined) filtri+= " and valido = " + filters.valido + " ";
     }
-    return files;
+    console.log("Filtri SQL generati:", filtri);
+    if (records == null || records.length === 0) {
+        fs.accessSync(archivePath);
+        records = await readSomeRecords(archivePath, filtri, filters.orderBy);
+    }
 }
 router.post("/preview/list", async (req, res) => {
-    const { destDir, archive } = req.body;
+    console.log("/preview/list called with body:", req.body);
+    const { destDir, archive } = req.body.parametri;
+    const filters = req.body.filters;
     try {
-        files = await loadFiles(destDir, archive);
-        console.log("/preview/list: called", files.length, archivePath);
-        res.json(files.map(file => file.fullname));
+        await loadFiles(destDir, archive,filters);
+        console.log("/preview/list: called", records.length);
+        res.json(records.map(file => file.fullname));
     } catch (error) {
         console.error("/preview/list:", error);
         res.status(500).json({ error: "Errore durante la ricerca" });
@@ -269,7 +248,7 @@ router.post("/records/update", async (req, res) => {
         console.error("Errore aggiornamento record:", error);
         res.status(500).json({ error: error.message });
     } finally {
-       
+
     }
 });
 
@@ -277,8 +256,12 @@ router.get("/records", async (req, res) => {
     try {
         const profileName = typeof req.query.profileName === "string" ? req.query.profileName : "";
         //await waitForScans(profileName);
-        const records = await searchArchive(parseRecordFilters(req.query), profileName);
-        res.json(records);
+        searchArchive(parseRecordFilters(req.query), profileName)
+            .then(result => {
+                records = result;
+                console.log("/records: called", records.length);
+                res.json(records);
+            });
     } catch (error) {
         console.error("/records:", error);
         res.status(500).json({ error: "Errore durante la ricerca" });
@@ -288,7 +271,8 @@ router.get("/records", async (req, res) => {
 router.post("/records/detail", async (req, res) => {
     const fullname = typeof req.body.fullname === "string" ? req.body.fullname : "";
     try {
-        res.json({ path: pathFile[fullname] });
+        console.log("/records/detail: called for", fullname);
+        res.json(records.find(f => f.fullname === fullname));
     } catch (error) {
         console.error("/records/detail:", error);
         res.status(500).json({ error: "Errore durante la lettura del record" });

@@ -45,6 +45,6 @@ await saveProfile(profilo_giuliano);
 const profile=await loadProfile("giuliano");
 //console.log(profile);
 
-const job = "analisiDest";
-//await analisiFromArchive(job, profile).then(result => console.log("Job:", job, "\nFiles Elaborati:", result.count, "\nErrori:", result.errorCount,"\nConteggio:",result.files.length,"\nReadTime:", result.readTime,"\nScanTime:", result.scanTime,"\nTotalTime:", result.TotalTime));
-await analisiByName(profile);
+const job = "analisiDate";
+await analisiFromArchive(job, profile).then(result => console.log("Job:", job, "\nFiles Elaborati:", result.count, "\nErrori:", result.errorCount,"\nConteggio:",result.files.length,"\nReadTime:", result.readTime,"\nScanTime:", result.scanTime,"\nTotalTime:", result.TotalTime));
+//await analisiByName(profile);

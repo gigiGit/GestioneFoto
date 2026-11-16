@@ -171,6 +171,7 @@ function preview() {
 const queryForm = document.querySelector("#query-form");
 const queryReset = document.querySelector("#query-reset");
 const queryStatus = document.querySelector("#query-status");
+const queryRun = document.querySelector("#query-run");
 const navFirst = document.querySelector("#nav-first");
 const navPrev = document.querySelector("#nav-prev");
 const navNext = document.querySelector("#nav-next");
@@ -209,25 +210,28 @@ function resetFilters() {
 async function runQuery(filters) {
     setQueryStatus("Ricerca in corso...");
     const parametri = getProfileData();
+    console.log("Eseguo query con parametri:", parametri, "e filtri:", filters);
     try {
-        const response = await fetch("/api/preview/list", {
+        requestJson("/api/preview/list", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(parametri)
+            body: JSON.stringify({ parametri, filters })
+        }).then(response => {
+            const records = response;
+            console.log("Letti dal server (via requestJson)", records.length);
+            if (!Array.isArray(records)) throw new Error("Risposta non valida");
+            recordSet.records = records;
+            recordSet.current = -1;
+            if (records.length === 0) {
+                goToRecord(-1);
+                setQueryStatus("Nessun record trovato");
+                return;
+            }
+            console.log("Recordset", recordSet.records[0]);
+            setQueryStatus(`${records.length} record trovati`);
+            goToRecord(0);
+
         });
-        if (!response.ok) throw new Error(`Errore HTTP: ${response.status}`);
-        const records = await response.json();
-        console.log("Letti dal server", records.length);
-        if (!Array.isArray(records)) throw new Error("Risposta non valida");
-        recordSet.records = records;
-        recordSet.current = -1;
-        if (records.length === 0) {
-            goToRecord(-1);
-            setQueryStatus("Nessun record trovato");
-            return;
-        }
-        setQueryStatus(`${records.length} record trovati`);
-        goToRecord(0);
     } catch (error) {
         console.error("Errore durante la ricerca:", error);
         recordSet.records = [];
@@ -241,18 +245,22 @@ function setQueryStatus(message) {
 
 // ---- 3) Navigazione ----
 function goToRecord(index) {
-    const total = recordSet.records.length;
-    if (total === 0) {
-        recordSet.current = -1;
-        detailRequestId++;
-        updateNavigation();
-        clearRecord();
-        return;
+
+    if (index >= 0 && index < recordSet.records.length) {
+        requestJson("/api/records/detail", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullname: recordSet.records[index] })
+        }).then(response => {
+            const detail = response;
+            console.log("Dettaglio:", detail, "di:", recordSet.records[index]);
+            showRecord(detail);
+            recordSet.current = index;
+            updateNavigation();
+        });
     }
-    recordSet.current = Math.min(Math.max(Number.isInteger(index) ? index : 0, 0), total - 1);
-    updateNavigation();
-    showRecord(recordSet.records[recordSet.current]);
 }
+
 function goFirst() {
     goToRecord(0);
 }
@@ -277,44 +285,28 @@ function updateNavigation() {
 }
 
 // ---- 4) Visualizzazione record ----
-async function showRecord(record) {
-    const requestId = ++detailRequestId;
-    clearRecord();
-    try {
-        const detailParams = new URLSearchParams({ fullname: record.fullname, profileName: profileSelector.value });
-        requestJson("/api/records/detail?", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fullname: record.fullname })
-        });
-        const response = await fetch("/api/records/detail?" + detailParams);
-        if (!response.ok) throw new Error(`Errore HTTP: ${response.status}`);
-        const detail = await response.json();
-        console.log(detail);
-        for (const cell of recordData.querySelectorAll("[data-field]")) {
-            const value = detail[cell.dataset.field];
-            if (cell.type === "checkbox") {
-                cell.checked = value === null || value === undefined || value === "" || value === true || Number(value) === 1;
-            } else if (cell.type === "datetime-local") {
-                cell.value = toDateTimeLocal(value);
-            } else {
-                cell.textContent = Array.isArray(value) ? value.join(", ") : value ?? "";
-            }
+async function showRecord(detail) {
+    for (const cell of recordData.querySelectorAll("[data-field]")) {
+        const value = detail[cell.dataset.field];
+        if (cell.type === "checkbox") {
+            cell.checked = value === null || value === undefined || value === "" || value === true || Number(value) === 1;
+        } else if (cell.type === "datetime-local") {
+            cell.value = toDateTimeLocal(value);
+        } else {
+            cell.textContent = Array.isArray(value) ? value.join(", ") : value ?? "";
         }
-        if (typeof detail.thumbnail === "string" && detail.thumbnail.startsWith("data:image/")) {
-            recordThumbnail.src = detail.thumbnail;
-        }
-        duplicateSelectButton.disabled = Number(detail.duplicateCount) < 2;
-        duplicateSelectButton.textContent = Number(detail.valido) === 1
-            ? "Già selezionato come valido"
-            : "Seleziona come unico valido";
-        recordSaveButton.disabled = true;
-        recordSaveStatus.textContent = "";
-    } catch (error) {
-        if (requestId !== detailRequestId) return;
-        console.error("Errore caricamento dettaglio:", error);
-        setQueryStatus("Dettaglio non disponibile per il record selezionato");
     }
+    if (typeof detail.thumbnail === "string" && detail.thumbnail.startsWith("data:image/")) {
+        recordThumbnail.src = detail.thumbnail;
+    }else{
+        recordThumbnail.src="";
+    }
+    duplicateSelectButton.disabled = Number(detail.duplicateCount) < 2;
+    duplicateSelectButton.textContent = Number(detail.valido) === 1
+        ? "Già selezionato come valido"
+        : "Seleziona come unico valido";
+    recordSaveButton.disabled = true;
+    recordSaveStatus.textContent = ""; 
 }
 function clearRecord() {
     for (const cell of recordData.querySelectorAll("[data-field]")) {
@@ -379,6 +371,7 @@ queryForm.addEventListener("submit", event => {
     runQuery(getFilters());
 });
 queryReset.addEventListener("click", () => resetFilters());
+
 navFirst.addEventListener("click", () => goFirst());
 navPrev.addEventListener("click", () => goPrev());
 navNext.addEventListener("click", () => goNext());

@@ -180,14 +180,15 @@ async function readArchiveFiles(archivePath, filters = {}, sellist = "*") {
     await closeDatabase(db);
   }
 }
-async function readSomeRecords(archivePath, filters =null) {
+async function readSomeRecords(archivePath, filters =null,orderby = null) {
   console.log("Lettura record dall'archivio", archivePath);
   const db = await openReadOnlyDatabase(path.resolve(archivePath));
   var records;
   const WHERE=filters ? "where " + filters : "";
+  const ORDERBY=orderby ? "order by " + orderby : "";
   try {  
-    records = await all(db, `SELECT * FROM raw_files ${WHERE}`);
-    console.log("Record letti:", records.length);
+    records = await all(db, `SELECT * FROM raw_files ${WHERE} ${ORDERBY}`);
+    console.log("Record letti:", records.length, "con filtri:", WHERE, "e ordinamento:", ORDERBY);
     return records.map(mapArchivedRecord);
   }catch(error) {
     console.error(error);

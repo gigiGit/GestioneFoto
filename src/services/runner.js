@@ -230,7 +230,16 @@ export async function analisiAlbum(file, pendingFiles, { force = false }) {
 export async function analisiDate(file, pendingFiles, { force = false, verbose = 0 }) {
     if (verbose > 1) console.log(`Starting analisiDate for ${file.fullname}`);
     //casi particolari
-    if (file.name === "IMG_2145.1.jpg" ||
+    if (file.name === "IMG_2145.jpg" ||
+        file.name === "IMG_2146.jpg" ||
+        file.name === "IMG_2147.jpg" ||
+        file.name === "IMG_2148.jpg" ||
+        file.name === "IMG_2149.jpg" ||
+        file.name === "IMG_2150.jpg" ||
+        file.name === "IMG_2151.jpg" ||
+        file.name === "IMG_2152.jpg" ||
+        file.name === "IMG_2153.jpg" ||
+        file.name === "IMG_2145.1.jpg" ||
         file.name === "IMG_2146.1.jpg" ||
         file.name === "IMG_2147.1.jpg" ||
         file.name === "IMG_2148.1.jpg" ||
@@ -248,7 +257,7 @@ export async function analisiDate(file, pendingFiles, { force = false, verbose =
         file.name === "img_2151.1.jpg" ||
         file.name === "img_2152.1.jpg" ||
         file.name === "img_2153.1.jpg") {
-        if (verbose > 1) console.log(`Special case for ${file.fullname}`);
+        console.log(`Special case for ${file.fullname}`);
         file.exifCreateDate = "2011-06-01T00:00:00.000Z";
         file.exifDateTimeOriginal = "2011-06-01T00:00:00.000Z";
         file.exifModifyDate = "2011-06-01T00:00:00.000Z";
