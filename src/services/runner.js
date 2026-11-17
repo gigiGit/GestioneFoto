@@ -75,7 +75,7 @@ export async function analisiDest(file, pendingFiles, { force = false, destDir, 
     const dataFormattata = formato === "YYYYMMDD" ? `${anno}${path.sep}${mese}${path.sep}${giorno}` : `${anno}${path.sep}${mese}`;
     const destinationDir = dataFormattata;
     const destPath = path.join(destDir, backupPath, destinationDir, file.name);
-    if (file.destPath) return false;
+    //if (file.destPath) return false;
     file.destPath = destinationDir;
     pendingFiles.push(file);
     return true;
@@ -229,69 +229,6 @@ export async function analisiAlbum(file, pendingFiles, { force = false }) {
 
 export async function analisiDate(file, pendingFiles, { force = false, verbose = 0 }) {
     if (verbose > 1) console.log(`Starting analisiDate for ${file.fullname}`);
-    //casi particolari
-    /*if (file.name === "IMG_2145.jpg" ||
-        file.name === "IMG_2146.jpg" ||
-        file.name === "IMG_2147.jpg" ||
-        file.name === "IMG_2148.jpg" ||
-        file.name === "IMG_2149.jpg" ||
-        file.name === "IMG_2150.jpg" ||
-        file.name === "IMG_2151.jpg" ||
-        file.name === "IMG_2152.jpg" ||
-        file.name === "IMG_2153.jpg" ||
-        file.name === "IMG_2145.1.jpg" ||
-        file.name === "IMG_2146.1.jpg" ||
-        file.name === "IMG_2147.1.jpg" ||
-        file.name === "IMG_2148.1.jpg" ||
-        file.name === "IMG_2149.1.jpg" ||
-        file.name === "IMG_2150.1.jpg" ||
-        file.name === "IMG_2151.1.jpg" ||
-        file.name === "IMG_2152.1.jpg" ||
-        file.name === "IMG_2153.1.jpg" ||
-        file.name === "img_2145.1.jpg" ||
-        file.name === "img_2146.1.jpg" ||
-        file.name === "img_2147.1.jpg" ||
-        file.name === "img_2148.1.jpg" ||
-        file.name === "img_2149.1.jpg" ||
-        file.name === "img_2150.1.jpg" ||
-        file.name === "img_2151.1.jpg" ||
-        file.name === "img_2152.1.jpg" ||
-        file.name === "img_2153.1.jpg") {
-        console.log(`Special case for ${file.fullname}`);
-        file.exifCreateDate = "2011-06-01T00:00:00.000Z";
-        file.exifDateTimeOriginal = "2011-06-01T00:00:00.000Z";
-        file.exifModifyDate = "2011-06-01T00:00:00.000Z";
-        file.dt_valida = "2011-06-01T00:00:00.000Z";
-        pendingFiles.push(file);
-        return true;
-    }
-    if(file.name === "p1010156.jpg" ||
-       file.name === "p1010157.jpg" ||
-       file.name === "p1010158.jpg" ||
-       file.name === "p1010159.jpg" ||
-       file.name === "p1010160.jpg" ||
-       file.name === "p1010161.jpg" ||
-       file.name === "p1010162.jpg" ||
-       file.name === "p1010164.jpg" ||
-       file.name === "p1010165.jpg" ||
-       file.name === "p1010166.jpg" ||
-       file.name === "p1010167.jpg" ||
-       file.name === "p1010168.jpg" ||
-       file.name === "p1010169.jpg" ||
-       file.name === "p1010170.jpg" ||
-       file.name === "p1010171.jpg"  ||
-       file.name === "p1010172.mov" ||
-       file.name === "p1010173.mov" ||
-       file.name === "p1010174.mov") {
-        console.log(`Special case for ${file.fullname}`);
-        file.exifCreateDate = "2014-09-06T00:00:00.000Z";
-        file.exifDateTimeOriginal = "2014-09-06T00:00:00.000Z";
-        file.exifModifyDate = "2014-09-06T00:00:00.000Z";
-        file.dt_valida = "2014-09-06T00:00:00.000Z";
-        pendingFiles.push(file);
-        return true;
-       }
-        */
     try {
         let bestTry = file.exifDateTimeOriginal ?? file.exifCreateDate ?? file.exifGPSDateStamp ?? file.exifModifyDate;
         if (!(bestTry > "1900" && bestTry < "2030")) {
@@ -337,13 +274,13 @@ export function recuperaDataDaNome(file) {
     if (filename.startsWith("giuliano")) {
         return "1961-01-07T00:00:00.000Z";
     }
-    var patt1 = [/(\d{13})\.jpg/]
+    var patt1 = [] ;
     var patt6 = [/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/, /(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, /(\d{4})(\d{2})(\d{2})_(\d{2})-(\d{2})-(\d{2})/,
         /screenshot_(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, /vid_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/,
         /vid-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/,
-        /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,
+        /vid(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/,/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).jpg/,
         /img.(\d{4})_(\d{2})_(\d{2}).(\d{2})_(\d{2})_(\d{2})/];
-    var patt3 = [/img-(\d{4})(\d{2})(\d{2})-wa/,
+    var patt3 = [/img-(\d{4})(\d{2})(\d{2})-wa\d{4}\.jpg/,
         /vid-(\d{4})(\d{2})(\d{2})-wa/
     ];
 

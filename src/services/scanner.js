@@ -95,7 +95,7 @@ export async function analisiByName(parametri) {
   }
 }
 
-export async function analisiFromArchive(funcName, parametri) {
+export async function analisiFromArchive(funcName, parametri, customFunc) {
   let count = 0;
   let errorCount = 0;
   let pendingFiles = [];
@@ -135,6 +135,7 @@ export async function analisiFromArchive(funcName, parametri) {
                   file.exifDateTimeOriginal = date;
                   file.exifModifyDate = date;
                   file.dt_valida = date;
+                  file.dt_created = date;
                   pendingFiles.push(file);
                 }
               })
@@ -148,8 +149,8 @@ export async function analisiFromArchive(funcName, parametri) {
     case "analisiAlbum": cb = analisiAlbum; break;
     case "changeFileDate": cb = changeFileDate; break;
     case "dhash": cb = calcolaDHashHex; break;
-    default:
-      throw new Error(`Invalid function name: ${funcName}`);
+    default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
+    break;
   }
   if (!option.count) option.count = 500;
 
