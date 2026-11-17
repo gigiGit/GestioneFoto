@@ -2,7 +2,7 @@ import { analisiFromArchive, scanSource, analisiByName } from './services/scanne
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
 import { writeArchiveFiles, readSomeRecords } from "./services/scan-archive.cjs";
 import path from 'path';
-
+import fs from 'node:fs';
 
 const profilo_giuliano = {
   name: "giuliano",
@@ -104,6 +104,7 @@ await analisiFromArchive(job, profile).then(
       "\nReadTime:", result.readTime,
       "\nScanTime:", result.scanTime,
       "\nTotalTime:", result.TotalTime);
+    
   });
 await analisiFromArchive("analisiDest", profile).then((result) => {
   console.log("Job: analisiDest",
@@ -113,9 +114,40 @@ await analisiFromArchive("analisiDest", profile).then((result) => {
     "\nReadTime:", result.readTime,
     "\nScanTime:", result.scanTime,
     "\nTotalTime:", result.TotalTime);
-  for(const file of result.files) {
-    if(file.valido)console.log("copy ", file.fullname,path.join(profile.destDir, file.destPath,file.name));
-  }
+  
+
+  const stream = fs.createWriteStream('copia.bat', { encoding: 'utf8' });
+  stream.write('@echo off\n');
+  result.files.sort((a, b) => a.size-b.size).forEach((file) => {
+    if(file.fullname==="E:\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png"){
+      file.name="giuliano-germanna_1.png";
+      file.valido=1;
+    }
+    if(file.fullname==="E:\\1961\\01-Gennaio\\07\\giuliano-germanna(3).png"){
+      file.name="giuliano-germanna_3.png";
+      file.valido=1;
+    }
+    const riga1=`mkdir "${path.join(profile.destDir, profile.backupPath, file.destPath)}"`;
+    const riga2 = file.valido ?
+      `copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath,file.destPath, file.name)}"` :
+      `REM copy "${file.fullname}" "${path.join(profile.destDir,profile.backupPath, file.destPath, file.name)}"`;
+    stream.write(riga1 + '\n');
+    stream.write(riga2 + '\n');
+  });
+
+  stream.end(); // Chiude lo stream quando hai finito
+
+  stream.on('finish', () => {
+    console.log('Scrittura completata!');
+  });
+
+  stream.on('error', (err) => {
+    console.error('Errore durante la scrittura:', err);
+  });
+
+
+
+
 })
 
 
