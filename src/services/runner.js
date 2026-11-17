@@ -230,7 +230,7 @@ export async function analisiAlbum(file, pendingFiles, { force = false }) {
 export async function analisiDate(file, pendingFiles, { force = false, verbose = 0 }) {
     if (verbose > 1) console.log(`Starting analisiDate for ${file.fullname}`);
     //casi particolari
-    if (file.name === "IMG_2145.jpg" ||
+    /*if (file.name === "IMG_2145.jpg" ||
         file.name === "IMG_2146.jpg" ||
         file.name === "IMG_2147.jpg" ||
         file.name === "IMG_2148.jpg" ||
@@ -265,6 +265,33 @@ export async function analisiDate(file, pendingFiles, { force = false, verbose =
         pendingFiles.push(file);
         return true;
     }
+    if(file.name === "p1010156.jpg" ||
+       file.name === "p1010157.jpg" ||
+       file.name === "p1010158.jpg" ||
+       file.name === "p1010159.jpg" ||
+       file.name === "p1010160.jpg" ||
+       file.name === "p1010161.jpg" ||
+       file.name === "p1010162.jpg" ||
+       file.name === "p1010164.jpg" ||
+       file.name === "p1010165.jpg" ||
+       file.name === "p1010166.jpg" ||
+       file.name === "p1010167.jpg" ||
+       file.name === "p1010168.jpg" ||
+       file.name === "p1010169.jpg" ||
+       file.name === "p1010170.jpg" ||
+       file.name === "p1010171.jpg"  ||
+       file.name === "p1010172.mov" ||
+       file.name === "p1010173.mov" ||
+       file.name === "p1010174.mov") {
+        console.log(`Special case for ${file.fullname}`);
+        file.exifCreateDate = "2014-09-06T00:00:00.000Z";
+        file.exifDateTimeOriginal = "2014-09-06T00:00:00.000Z";
+        file.exifModifyDate = "2014-09-06T00:00:00.000Z";
+        file.dt_valida = "2014-09-06T00:00:00.000Z";
+        pendingFiles.push(file);
+        return true;
+       }
+        */
     try {
         let bestTry = file.exifDateTimeOriginal ?? file.exifCreateDate ?? file.exifGPSDateStamp ?? file.exifModifyDate;
         if (!(bestTry > "1900" && bestTry < "2030")) {
@@ -303,7 +330,7 @@ export function recuperaDataDaNome(file) {
         return Number(txt) ? Number(txt) % 60 : "00";
     }
     const filename = file.name.toLowerCase();
-    console.log(`Checking filename: ${filename}`);
+    //console.log(`Checking filename: ${filename}`);
     if (filename.startsWith("fotoscandiano")) {
         return "1950-01-01T00:00:00.000Z";
     }

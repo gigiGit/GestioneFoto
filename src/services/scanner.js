@@ -123,7 +123,27 @@ export async function analisiFromArchive(funcName, parametri) {
 
       break;
     case "copia": cb = copia; break;
-    case "analisiDate": cb = analisiDate; break;
+    case "analisiDate": cb = analisiDate;{
+      if (parametri.casiParticolari) {
+        option.casiParticolari = parametri.casiParticolari;
+        for(const date in parametri.casiParticolari) {
+        
+            for(const f of option.casiParticolari[date]) {
+              files.forEach(file=>{
+                if (file.name===f) {
+                  file.exifCreateDate = date;
+                  file.exifDateTimeOriginal = date;
+                  file.exifModifyDate = date;
+                  file.dt_valida = date;
+                  pendingFiles.push(file);
+                }
+              })
+          }
+          console.log(`Applied special cases for analisiDate`,date,pendingFiles.length);
+        }
+      }
+
+    } break;
     case "hash": cb = hashFile; break;
     case "analisiAlbum": cb = analisiAlbum; break;
     case "changeFileDate": cb = changeFileDate; break;
