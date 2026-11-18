@@ -1,7 +1,4 @@
-import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { writeArchiveFiles, readSomeRecords, archiveScanFiles, readBatchRecords } from "./services/scan-archive.cjs";
-import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
 import fs from 'node:fs';
@@ -14,7 +11,7 @@ const profilo_giuliano = {
   scanDir: "scan",
   backupPath: "giuliano\\backup",
   albumPath: "giuliano\\album",
-  batchSize: 500,
+  batchSize: 100,
   minSize: 0,
   verbose: 1,
   simulazione: true,
