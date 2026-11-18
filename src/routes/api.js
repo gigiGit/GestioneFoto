@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 import fs from 'fs';
 import path from 'path';
-import { analisiFromArchive, scanSource } from '../services/scanner.js';
+import { analisiFromMemory, scanSource } from '../services/scanner.js';
 import { readSomeRecords, writeArchiveFiles, selectValidDuplicate, updateArchiveRecord } from '../services/scan-archive.cjs';
 const profili = {};
 // API di verifica server

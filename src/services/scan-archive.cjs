@@ -481,7 +481,17 @@ async function initDB(db) {
     destPath TEXT,
     primary key (fullname)
   )`;
-
+const VSQL=`create view if not exists v_raw_files as 
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY hash
+               ORDER BY rowid
+           ) AS rn
+    FROM raw_files
+)
+WHERE rn > 1`;
   try {
     await run(db, SQL);
     const columns = await all(db, "PRAGMA table_info(raw_files)");
@@ -491,6 +501,7 @@ async function initDB(db) {
     if (!columns.some(column => column.name === "dhash")) {
       await run(db, "ALTER TABLE raw_files ADD COLUMN dhash TEXT");
     }
+    await run(db, VSQL);
   } catch (error) {
     throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
   }
