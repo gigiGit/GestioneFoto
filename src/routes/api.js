@@ -120,12 +120,13 @@ router.post("/profiles", async (req, res) => {
 var Runner = false;
 router.post("/jobs/scan", async (req, res) => {
     const profile = req.body ?? {};
+    console.log("Starting scan for profile:", profile);
     if (Runner) return res.status(409).json({ error: "Scansione già in corso" });
     Runner = true;
     scanSource(profile)
-        .then((files) => {
-            res.json({ success: true });
-            console.log(`Scan completed for profile: ${profile.name}`, files.length);
+        .then(() => {
+            res.json({ success: true  });
+            console.log(`Scan completed for profile: ${profile.name}`);
         })
         .catch(err => {
             console.error("Errore durante la scansione:", err);
@@ -288,7 +289,7 @@ router.post("/jobs/runner", async (req, res) => {
     }
     Runner = true;
     analisiFromArchive(parametri.runner, parametri.profile)
-        .then(result => res.json({ success: true, count: result.count, errorCount: result.errorCount, files: result.files }))
+        .then(result => res.json({ success: true, count: result.count, errorCount: result.errorCount }))
         .catch(error => res.status(500).json({ error: error.message }))
         .finally(() => { Runner = false; });
 });
