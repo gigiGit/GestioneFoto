@@ -1,6 +1,6 @@
-import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
+//import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { writeArchiveFiles, readSomeRecords, archiveScanFiles, readBatchRecords } from "./services/scan-archive.cjs";
+import {  readBatchRecords2 } from "./services/scan-archive.js";
 import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
@@ -34,7 +34,7 @@ await scanSource(profile)
   */
 var cnt = 0;
 logMemoria("before readBatchRecords");
-var modifiedCount = await readBatchRecords(archivePath, profile,
+var modifiedCount = await readBatchRecords2(archivePath, profile,
   async (record,count) => {
     cnt++;
     if (cnt % 100 === 0)
@@ -44,7 +44,7 @@ var modifiedCount = await readBatchRecords(archivePath, profile,
   }
 );
 console.log("Modified count:", modifiedCount);
-var modifiedCount = await readBatchRecords(archivePath, profile,
+var modifiedCount = await readBatchRecords2(archivePath, profile,
   async (record) => {
     return analisiDest(record, null, profile);
   }
