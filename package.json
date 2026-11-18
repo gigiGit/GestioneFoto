@@ -15,9 +15,9 @@
     "build": "electron-builder"
   },
   "files": [
-      "src/**/*",
-      "package.json"
-    ],
+    "src/**/*",
+    "package.json"
+  ],
   "dependencies": {
     "bmp-js": "^0.1.0",
     "exifr": "^7.1.3",
