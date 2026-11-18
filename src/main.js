@@ -115,7 +115,6 @@ if (true) {
     .then(result => {
       console.log("Scan completed:", result.length);
     });
-  var pendingFiles = [];
   logMemoria("before readBatchRecords");
   var modifiedCount = await readBatchRecords(archivePath, profile,
     async (record) => {
