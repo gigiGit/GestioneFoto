@@ -30,7 +30,7 @@ const profilo_roberto = {
   simulazione: true,
   force:false,
   formato: "YYYYMMDD",
-  filters: null,
+  filters: {null},
   extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf",'.JPG',
     ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 }

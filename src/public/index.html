@@ -46,6 +46,7 @@
     border-radius: 12px;
     padding: 4px;
     margin: 4px;
+    width: 150px;
 }
         @media (max-width: 768px) {
             .contenitore {
@@ -71,19 +72,21 @@
                 <select id="saved-profiles">
                     <option value="">Seleziona un profilo</option>
                 </select><br>
-                <div><button id="job-scan" class="job-button">...</button>1) Scan</div>
+                <div><button id="job-scan" class="job-button">Scan</button></div>
                 <div id="scan-progress-box" hidden>
                     <progress id="scan-progress" max="1"></progress>
                     <button id="scan-stop" type="button" class="job-button" hidden>Stop</button>
                     <div id="scan-progress-text"></div>
                 </div>
-                <div><button id="job-exif" class="job-button">...</button>2) Exif</div>
-                <div><button id="job-analisi" class="job-button">...</button>3) Data</div>
-                <div><button id="job-thumbnail" class="job-button">...</button>4) Miniature</div>
-                <div><button id="job-copia" class="job-button">...</button>5) Copia</div>
-                <div><button id="job-album" class="job-button">...</button>6) Album</div>
+                <div><button id="job-exif" class="job-button">Exif</button></div>
+                <div><button id="job-hash" class="job-button">Hash</button></div>
+                <div><button id="job-analisi" class="job-button">Analisi Date</button></div>
+                <div><button id="job-thumbnail" class="job-button">Miniature</button></div>
+                <div><button id="job-dest" class="job-button">Destinazione</button></div>
+                <div><button id="job-copia" class="job-button">Copia</button></div>
+                <div><button id="job-album" class="job-button">Album</button></div>
                 <div>Filtri</div>
-                <div><button id="preview" class="job-button" onclick="preview()">...</button>Preview</div>
+                <div><button id="preview" class="job-button" onclick="preview()">Preview</button></div>
             </section>
 
             <section class="sezione-destra" style="width: 100%;">
@@ -191,7 +194,8 @@
                         </tr>
                         <tr>
                             <td>Cartella Sorgente</td>
-                            <td><input id="profile-source" name="sourceFolders" type="text" required></td>
+                            <!-- <td><input id="profile-source" name="sourceFolders" type="text" required></td> -->
+                            <td><table id="profile-source" name="sourceFolders"></table></td>
                             <td><button class="secondary-button" type="button"
                                     data-directory-target="profile-source">Scegli...</button></td>
                         </tr>
@@ -242,7 +246,7 @@
 
                         <tr>
                             <td>Output dettagliato (verbose)</td>
-                            <td><input id="profile-verbose" name="verbose" type="checkbox"></td>
+                            <td><input id="profile-verbose" name="verbose" type="number"></td>
 
                         </tr>
 

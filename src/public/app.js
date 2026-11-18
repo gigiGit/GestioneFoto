@@ -2,12 +2,16 @@
 const appStatus = document.getElementById("app-status");
 const profileSelector = document.getElementById("saved-profiles");
 const profileForm = document.querySelector("#profile-form");
+const tabSourceDirs = document.getElementById("profile-source");
+
 const jobScan = document.querySelector("#job-scan");
 const jobExif = document.querySelector("#job-exif");
+const jobHash = document.querySelector("#job-hash");
 const jobAnalisi = document.querySelector("#job-analisi");
 const jobAlbum = document.querySelector("#job-album");
 const jobThumbnail = document.querySelector("#job-thumbnail");
 const jobCopia = document.querySelector("#job-copia");
+const jobDest = document.querySelector("#job-dest");
 const previewButton = document.querySelector("#preview");
 const previewContainer = document.querySelector("#preview-container");
 const profileContainer = document.querySelector("#profile-container");
@@ -38,8 +42,9 @@ function applyProfile(profile) {
     profileForm.elements.name.value = profile.name || "default";
     profileForm.elements.destDir.value = profile.destDir || "";
     profileForm.elements.scanDir.value = profile.scanDir || "";
-    profileForm.elements.sourceFolders.value = profile.sourceFolders || "";
-    profileForm.elements.verbose.checked = Boolean(profile.verbose);
+    tabSourceDirs.value = profile.sourceFolders || "";
+    tabSourceDirs.innerHTML = profile.sourceFolders.map(folder => `<tr><td>${folder}</td></tr>`).join("") || "";
+    profileForm.elements.verbose.value = profile.verbose;
     profileForm.elements.batchSize.value = profile.batchSize ?? 10;
     profileForm.elements.minSize.value = profile.minSize ?? 4096;
     profileForm.elements.extensions.value = (profile.extensions || []).join(", ");
@@ -68,7 +73,7 @@ function getProfileData() {
     const elements = profileForm.elements;
     return {
         name: elements.name.value.trim(),
-        sourceFolders: elements.sourceFolders.value,
+        sourceFolders: tabSourceDirs.value,
         destDir: elements.destDir.value,
         scanDir: elements.scanDir.value,
         archive: elements.archive.value,
@@ -76,7 +81,7 @@ function getProfileData() {
         albumPath: elements.albumPath.value,
         batchSize: Number(elements.batchSize.value),
         minSize: Number(elements.minSize.value),
-        verbose: elements.verbose.checked,
+        verbose: Number(elements.verbose.value),
         extensions: elements.extensions.value.split(",").map(ext => ext.trim()).filter(Boolean)
     };
 }
@@ -125,18 +130,41 @@ function disableJobButtons(disabled) {
     jobScan.disabled = disabled;
     jobExif.disabled = disabled;
     jobAnalisi.disabled = disabled;
+    jobDest.disabled = disabled;
+    jobHash.disabled = disabled;
     jobThumbnail.disabled = disabled;
     jobCopia.disabled = disabled;
     jobAlbum.disabled = disabled;
+    jobDest.disabled = disabled;
+    jobHash.disabled = disabled;
 }
-jobScan.addEventListener("click", () => startJob("scan"));
-jobExif.addEventListener("click", () => startJob("exif"));
-jobAnalisi.addEventListener("click", () => startJob("analisi"));
-jobThumbnail.addEventListener("click", () => startJob("thumbnail"));
-jobCopia.addEventListener("click", () => startJob("copia"));
+function showButton(name) {
+    jobScan.style.display = "inline-block";
+    jobScan.disabled = false;
+    jobExif.style.display = "none";
+    jobAnalisi.style.display = "none";
+    jobThumbnail.style.display = "none";
+    jobCopia.style.display = "none";
+    jobAlbum.style.display = "none";
+    jobDest.style.display = "none";
+    jobHash.style.display = "none";
+    jobButton = document.querySelector(`#job-${name}`);
+    if (jobButton) {
+        jobButton.style.display = "inline-block";
+        jobButton.disabled = false;
+    }
+}
+
+jobScan.addEventListener("click", () => { startScan(showButton("hash")); });
+jobExif.addEventListener("click", () => startJob("exif", showButton("thumbnail")));
+jobHash.addEventListener("click", () => startJob("hash", showButton("exif")));
+jobDest.addEventListener("click", () => startJob("analisiDest", showButton("copia")));
+jobAnalisi.addEventListener("click", () => startJob("analisiDate", showButton("dest")));
+jobThumbnail.addEventListener("click", () => startJob("thumbnail", showButton("analisi")));
+jobCopia.addEventListener("click", () => startJob("copia", showButton("album")));
 jobAlbum.addEventListener("click", () => startJob("album"));
 //jobBackup.addEventListener("click", () => startJob("backup"));
-function startJob(type) {
+function startJob(type, cb) {
     disableJobButtons(true);
     const parametri = getProfileData();
 
@@ -145,11 +173,22 @@ function startJob(type) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile: parametri, runner: type })
     }).then(message => {
-        console.log("Elaborati:", message.count);
-        console.log("Errori:", message.errorCount);
-    }).finally(() => disableJobButtons(false));
+        console.log("Risultato:", message);
+    }).finally(() => { disableJobButtons(false); if (cb) cb(); });
 }
 
+function startScan(cb) {
+    disableJobButtons(true);
+    const profile = getProfileData();
+    console.log("Starting scan for profile:", profile);
+    requestJson("/api/jobs/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile)
+    }).then(message => {
+        console.log("Risultato:", message);
+    }).finally(() => { disableJobButtons(false); if (cb) cb(); });
+}
 
 function ShowPanel(id) {
     const panels = document.querySelectorAll(".panel");
@@ -298,15 +337,15 @@ async function showRecord(detail) {
     }
     if (typeof detail.thumbnail === "string" && detail.thumbnail.startsWith("data:image/")) {
         recordThumbnail.src = detail.thumbnail;
-    }else{
-        recordThumbnail.src="";
+    } else {
+        recordThumbnail.src = "";
     }
     duplicateSelectButton.disabled = Number(detail.duplicateCount) < 2;
     duplicateSelectButton.textContent = Number(detail.valido) === 1
         ? "Già selezionato come valido"
         : "Seleziona come unico valido";
     recordSaveButton.disabled = true;
-    recordSaveStatus.textContent = ""; 
+    recordSaveStatus.textContent = "";
 }
 function clearRecord() {
     for (const cell of recordData.querySelectorAll("[data-field]")) {

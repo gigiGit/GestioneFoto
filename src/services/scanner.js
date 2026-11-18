@@ -1,8 +1,8 @@
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
-import { writeArchiveFiles, readSomeRecords } from "./scan-archive.cjs";
-import {calcolaDHashHex, changeFileDate,analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+
+import { writeArchiveFiles, readSomeRecords,readBatchRecords } from "./scan-archive.cjs";
+import { calcolaDHashHex,casiParticolari , changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -22,80 +22,13 @@ function canCreateSymlinks(targetDir) {
     return false;
   }
 }
+
 async function noLink(file, pendingFiles, option) {
   console.warn(`Cannot create symlinks for file: ${file.fullname}`);
   return false;
 }
-export async function analisiByName(parametri) {
-  const files = [];
-  const archivePath = path.join(parametri.destDir, parametri.archive);
-  try {
-    fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath, parametri.filters));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  console.log(`Loaded ${files.length} files from ${archivePath}`);
-  const hashFile = {};
-  const nameFile = {};
-  for (const file of files) {
-    if (!hashFile[file.hash]) hashFile[file.hash] = [];
-    hashFile[file.hash].push(file);
-    if (!nameFile[file.destPath+"-"+file.name]) nameFile[file.destPath+"-" +file.name] = [];
-    nameFile[file.destPath+"-"+file.name].push(file);
-  }
-  let pendingFiles = [];
-  /*
-  for (const hash in hashFile) {
-    if (hashFile[hash].length > 1) {
-      let file = hashFile[hash][0];
-      file.valido = true;
-      for (let i = 1; i < hashFile[hash].length; i++) {
-        hashFile[hash][i].valido = false;
-        if (hashFile[hash][i].dt_valida < file.dt_valida) {
-          file.valido = false;
-          pendingFiles.push(file);
-          file = hashFile[hash][i];
-          file.valido = true;
-          pendingFiles.push(file);
-        }
-      }
-      if(parametri.verbose) console.log(`Duplicate hash found for file: ${hashFile[hash].map(f => f.fullname).join(", ")}\n  scelto: ${file.fullname}`);
-    }
-  }
-  if (pendingFiles.length > 0) {
-    //await writeArchiveFiles(archivePath, pendingFiles);
-    pendingFiles = [];
-  }
-  */
-  pendingFiles = [];
-  for (const name in nameFile) {
-    if (nameFile[name].length > 1) {
-      let file = nameFile[name][0];
-      file.valido = 1;
-      for (let i = 1; i < nameFile[name].length; i++) {
-        nameFile[name][i].valido = 0;
-        if (nameFile[name][i].size > file.size) {
-          nameFile[name][i].valido = 1;
 
-          file.valido = 0;
-          pendingFiles.push(file);
-
-          file = nameFile[name][i];
-          pendingFiles.push(file);
-        }
-      }
-      if (parametri.verbose) console.log(`Duplicate name found for file: ${nameFile[name].map(f => f.name+"-"+f.valido+"-"+f.size+"-"+f.dt_valida).join(",\n  ")}\n `);
-
-    }
-  }
-  if (pendingFiles.length > 0) {
-    await writeArchiveFiles(archivePath, pendingFiles);
-    pendingFiles = [];
-  }
-}
-
-export async function analisiFromArchive(funcName, parametri, customFunc) {
+export async function analisiFromMemory(funcName, parametri, customFunc) {
   let count = 0;
   let errorCount = 0;
   let pendingFiles = [];
@@ -104,7 +37,7 @@ export async function analisiFromArchive(funcName, parametri, customFunc) {
   const archivePath = path.join(parametri.destDir, parametri.archive);
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath, parametri.filters));
+    files.push(...await readSomeRecords(archivePath, parametri.filters,parametri.orderby,parametri.sellist));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
@@ -123,34 +56,14 @@ export async function analisiFromArchive(funcName, parametri, customFunc) {
 
       break;
     case "copia": cb = copia; break;
-    case "analisiDate": cb = analisiDate;{
-      if (parametri.casiParticolari) {
-        option.casiParticolari = parametri.casiParticolari;
-        for(const date in parametri.casiParticolari) {
-        
-            for(const f of option.casiParticolari[date]) {
-              files.forEach(file=>{
-                if (file.name===f) {
-                  file.exifCreateDate = date;
-                  file.exifDateTimeOriginal = date;
-                  file.exifModifyDate = date;
-                  file.dt_valida = date;
-                  file.dt_created = date;
-                  pendingFiles.push(file);
-                }
-              })
-          }
-          console.log(`Applied special cases for analisiDate`,date,pendingFiles.length);
-        }
-      }
-
-    } break;
+    case "analisiDate": cb = analisiDate;break;
+    case "casiParticolari": cb = casiParticolari;break;
     case "hash": cb = hashFile; break;
     case "analisiAlbum": cb = analisiAlbum; break;
     case "changeFileDate": cb = changeFileDate; break;
     case "dhash": cb = calcolaDHashHex; break;
     default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
-    break;
+      break;
   }
   if (!option.count) option.count = 500;
 
@@ -178,11 +91,77 @@ export async function analisiFromArchive(funcName, parametri, customFunc) {
   console.log(`Total time elapsed: ${dt3 - dt1} ms`);
   return { errorCount, count, files, readTime: dt2 - dt1, scanTime: dt3 - dt2, TotalTime: dt3 - dt1 };
 }
+
+
+export async function analisiFromDb(funcName, parametri, customFunc) {
+  let count = 0;
+  let errorCount = 0;
+  let pendingFiles = [];
+  const files = [];
+  const dt1 = new Date();
+  let cb = null;
+
+  let option = parametri || {};
+  switch (funcName) {
+    case "exif": cb = analisiExif; break;
+    case "thumbnail": cb = analisiThumbnail; break;
+    case "analisiDest": cb = analisiDest; break;
+    case "linkAlbum":
+      cb = linkAlbum;
+      if (!canCreateSymlinks(parametri.destDir)) {
+        cb = noLink;
+      }
+
+      break;
+    case "copia": cb = copia; break;
+    case "analisiDate": cb = analisiDate; break;
+    case "casiparticolari": cb = casiParticolari; break;
+    case "hash": cb = hashFile; break;
+    case "analisiAlbum": cb = analisiAlbum; break;
+    case "changeFileDate": cb = changeFileDate; break;
+    case "dhash": cb = calcolaDHashHex; break;
+    default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
+      break;
+  }
+  if (!option.count) option.count = 500;
+
+  console.log(`Starting analysis for function: ${funcName} Files da analizzare ${files.length}`);
+  const dt2 = new Date();
+  console.log(`Time elapsed since start: ${dt2 - dt1} ms`);
+  const archivePath = path.join(parametri.destDir, parametri.archive);
+  console.log("archivePath:", archivePath);
+  try {
+    fs.accessSync(archivePath);
+    await readBatchRecords(archivePath, parametri.filters, (async file => {
+      const exitCode = await cb(file, pendingFiles, option);
+      if (exitCode === false) errorCount++;
+      count++;
+      if (option.verbose && count % option.count === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
+      if (pendingFiles.length >= option.count) {
+        await writeArchiveFiles(archivePath, pendingFiles);
+        pendingFiles = [];
+      }
+    }));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+
+  if (pendingFiles.length > 0) {
+    await writeArchiveFiles(archivePath, pendingFiles);
+  }
+  console.log(`Analysis completed for function: ${funcName}`);
+  console.log(`Total files processed: ${count}`);
+  console.log(`Total errors: ${errorCount}`);
+  const dt3 = new Date();
+  console.log(`Total time elapsed: ${dt3 - dt1} ms`);
+  return { errorCount, count, files, readTime: dt2 - dt1, scanTime: dt3 - dt2, TotalTime: dt3 - dt1 };
+}
+
 /** legge i file presenti nelle SourceDir specificate in parametri.sourceFolders,
  *  e aggiorna l'archivio.
  */
 export async function scanSource(parametri) {
-
   const EXIF_IMAGE_EXTENSIONS = Object.freeze([
     ".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".png", ".webp", ".heic", ".heif", ".avif",
     ".3gp", ".JPG", ".MOV", ".avi", ".bmp", ".gif", ".jpeg", ".jpg", ".m4v", ".mov",
@@ -195,7 +174,7 @@ export async function scanSource(parametri) {
   const files = [];
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath));
+    files.push(...await readSomeRecords(archivePath,{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
     for (const file of files) {
       pathFile[file.fullname] = file;
     }

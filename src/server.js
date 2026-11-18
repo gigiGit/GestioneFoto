@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 // Ricostruzione di __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 3080;
 
 // Middleware

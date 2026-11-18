@@ -45,6 +45,26 @@ async function upsertFiles(db, files) {
   }
 }
 
+async function updateFiles(db, files) {
+  const columns = [
+    "hash", "dhash", "fullname", "name", "ext", "dt_valida", "size", "createdAt",
+    "exifCreateDate", "exifDateTimeOriginal", "exifGPSDateStamp", "exifModifyDate",
+    "thumbnail", "albums", "valido", "destPath"
+  ];
+  const assignments = columns.map(column => `${column} = COALESCE(?, ${column})`).join(", ");
+  try {
+    for (const file of files) {
+      const values = columns.map(column => column === "albums" && Array.isArray(file.albums)
+        ? JSON.stringify(file.albums)
+        : file[column] ?? null);
+      await run(db, `UPDATE raw_files SET ${assignments} WHERE fullname = ?`, [...values, file.fullname]);
+    }
+
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function writeArchiveFiles(databasePath, files) {
   const db = await openDatabase(databasePath);
   try {
@@ -111,8 +131,8 @@ function all(db, sql, values = []) {
 
 function deserializeAlbums(value) {
   if (value === null || value === undefined || value === "") return [];
-  let albums =[];
-  try{
+  let albums = [];
+  try {
     albums = JSON.parse(value);
   } catch (error) {
 
@@ -124,7 +144,8 @@ function deserializeAlbums(value) {
 }
 
 function mapArchivedRecord(record) {
-  return { ...record, albums: deserializeAlbums(record.albums) };
+  if (!record.albums) return record;
+  else return { ...record, albums: deserializeAlbums(record.albums) };
 }
 
 async function readArchiveFiles(archivePath, filters = {}, sellist = "*") {
@@ -180,17 +201,66 @@ async function readArchiveFiles(archivePath, filters = {}, sellist = "*") {
     await closeDatabase(db);
   }
 }
-async function readSomeRecords(archivePath, filters =null,orderby = null) {
-  console.log("Lettura record dall'archivio", archivePath);
+async function readBatchRecords(archivePath, options, callback) {
+  const orderby = options?.orderby || null;
+  const filters = options?.filters || null;
+  const sellist = options?.sellist || '*';
+  const batchSize = options?.batchSize || 100;
+  let modifiedRows = [];
+  let modifiedRowsCount = 0;
+  console.log("Options:", options);
+  console.log("Order by:", orderby);
+  console.log("Filters:", filters);
+  console.log("Sellist:", sellist);
+  const db = await openDatabase(path.resolve(archivePath));
+  try {
+    const conditions = [];
+    const values = [];
+    const text = value => typeof value === "string" ? value.trim() : "";
+    if (filters) {
+      if (text(filters.name)) {
+        conditions.push("instr(lower(COALESCE(name, '')), lower(?)) > 0");
+        values.push(text(filters.name));
+      }
+      if (text(filters.ext)) {
+        const extension = text(filters.ext);
+        conditions.push("lower(ext) = lower(?)");
+        values.push(extension.startsWith(".") ? extension : `.${extension}`);
+      }
+    }
+    const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+    const SQL = `SELECT ${sellist} FROM raw_files ${where} ${orderby ? `ORDER BY ${orderby}` : ""}`;
+    console.log("Executing SQL:", SQL, "with values:", values);
+    const records = await all(db, SQL);
+    for (const row of records) {
+      const record = mapArchivedRecord(row);
+      const result = await callback(record);
+      if (result) modifiedRows.push(record);
+    }
+    if (modifiedRows.length > 0) {
+      await updateFiles(db, modifiedRows);
+      modifiedRowsCount = modifiedRows.length;
+    }
+  } finally {
+    await closeDatabase(db);
+  }
+  return modifiedRowsCount;
+}
+async function readSomeRecords(archivePath, options = {}) {
+  const orderby = options?.orderby || null;
+  const filters = options?.filters || null;
+  const sellist = options?.sellist || '*';
+  const batchSize = options?.batchSize || 100;
+  //console.log("Lettura record dall'archivio", archivePath);
   const db = await openReadOnlyDatabase(path.resolve(archivePath));
-  var records;
-  const WHERE=filters ? "where " + filters : "";
-  const ORDERBY=orderby ? "order by " + orderby : "";
-  try {  
-    records = await all(db, `SELECT * FROM raw_files ${WHERE} ${ORDERBY}`);
-    console.log("Record letti:", records.length, "con filtri:", WHERE, "e ordinamento:", ORDERBY);
+  const WHERE = filters ? "where " + filters : "";
+  const ORDERBY = orderby ? "order by " + orderby : "";
+  const SQL = `SELECT ${sellist} FROM raw_files ${WHERE} ${ORDERBY}`
+  try {
+    const records = await all(db, SQL);
+    console.log("Record letti:", records.length, `SQL: "${SQL}"`);
     return records.map(mapArchivedRecord);
-  }catch(error) {
+  } catch (error) {
     console.error(error);
   } finally {
     await closeDatabase(db);
@@ -396,7 +466,7 @@ async function initDB(db) {
       await run(db, "ALTER TABLE raw_files ADD COLUMN valido INTEGER");
     }
     if (!columns.some(column => column.name === "dhash")) {
-      await run(db, "ALTER TABLE raw_files ADD COLUMN dhash TEXT");      
+      await run(db, "ALTER TABLE raw_files ADD COLUMN dhash TEXT");
     }
   } catch (error) {
     throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
@@ -498,13 +568,14 @@ module.exports = {
   archiveScanFiles,
   initDB,
   openDatabase,
-  readArchiveFiles,
+  //  readArchiveFiles,
   writeArchiveFiles,
   listArchivedFiles,
   updateArchivedFile,
   updateArchiveRecord,
   selectValidDuplicate,
-  upsertFiles, readSomeRecords
+  upsertFiles, readSomeRecords,
+  readBatchRecords
 };
 
 if (require.main === module) {
