@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 import fs from 'fs';
 import path from 'path';
-import { analisiFromArchive, scanSource } from '../services/scanner.js';
+import { analisiFromMemory, scanSource } from '../services/scanner.js';
 import { readSomeRecords, writeArchiveFiles, selectValidDuplicate, updateArchiveRecord } from '../services/scan-archive.cjs';
 const profili = {};
 // API di verifica server
@@ -50,11 +50,11 @@ router.get("/profiles", async (req, res) => {
         res.json(profiliName);
     });
 });
-router.get("/profiles/:name", async (req, res) => {
+router.get("/profiles/load/:name", async (req, res) => {
     const name = req.params.name;
     console.log("profilo richiesto: ", name)
     try {
-        res.json(profili[name]);
+        res.json(await loadProfile(name));
     } catch (error) {
         res.json({ error: error.message });
     }
@@ -93,7 +93,11 @@ function parseProfile(body) {
 
     return { profile };
 }
-
+router.post("/profiles/save", async (req, res) => {
+    const profile = req.body;
+    console.log("profilo", profile);
+    saveProfile(profile).then(() => res.json({ success: true }));
+});
 router.post("/profiles", async (req, res) => {
     const { profile, error } = parseProfile(req.body);
     if (error) return res.status(400).json({ error });
@@ -125,7 +129,7 @@ router.post("/jobs/scan", async (req, res) => {
     Runner = true;
     scanSource(profile)
         .then(() => {
-            res.json({ success: true  });
+            res.json({ success: true });
             console.log(`Scan completed for profile: ${profile.name}`);
         })
         .catch(err => {
@@ -187,15 +191,15 @@ let pathFile = {};
 async function loadFiles(destDir, archive, filters) {
     console.log("loadFiles called with destDir:", destDir, "archive:", archive, "filters:", filters);
     const archivePath = path.join(destDir, archive);
-    let filtri="1=1";
+    let filtri = "1=1";
     if (filters !== null && typeof filters === "object") {
-    if(filters.name) filtri+= " and name like '%" + filters.name + "%' ";
-    if(filters.ext) filtri+= " and ext = '" + filters.ext + "' ";
-    if(filters.album) filtri+= " and album like '%" + filters.album + "%' ";
-    if(filters.dateFrom) filtri+= " and dt_valida >= '" + filters.dateFrom + "' ";
-    if(filters.dateTo) filtri+= " and dt_valida <= '" + filters.dateTo + "' ";
-    if(filters.minSize) filtri+= " and size >= " + filters.minSize + " ";
-    if(filters.valido !== undefined) filtri+= " and valido = " + filters.valido + " ";
+        if (filters.name) filtri += " and name like '%" + filters.name + "%' ";
+        if (filters.ext) filtri += " and ext = '" + filters.ext + "' ";
+        if (filters.album) filtri += " and album like '%" + filters.album + "%' ";
+        if (filters.dateFrom) filtri += " and dt_valida >= '" + filters.dateFrom + "' ";
+        if (filters.dateTo) filtri += " and dt_valida <= '" + filters.dateTo + "' ";
+        if (filters.minSize) filtri += " and size >= " + filters.minSize + " ";
+        if (filters.valido !== undefined) filtri += " and valido = " + filters.valido + " ";
     }
     console.log("Filtri SQL generati:", filtri);
     if (records == null || records.length === 0) {
@@ -208,7 +212,7 @@ router.post("/preview/list", async (req, res) => {
     const { destDir, archive } = req.body.parametri;
     const filters = req.body.filters;
     try {
-        await loadFiles(destDir, archive,filters);
+        await loadFiles(destDir, archive, filters);
         console.log("/preview/list: called", records.length);
         res.json(records.map(file => file.fullname));
     } catch (error) {
@@ -288,7 +292,7 @@ router.post("/jobs/runner", async (req, res) => {
         return;
     }
     Runner = true;
-    analisiFromArchive(parametri.runner, parametri.profile)
+    analisiFromMemory(parametri.runner, parametri.profile)
         .then(result => res.json({ success: true, count: result.count, errorCount: result.errorCount }))
         .catch(error => res.status(500).json({ error: error.message }))
         .finally(() => { Runner = false; });

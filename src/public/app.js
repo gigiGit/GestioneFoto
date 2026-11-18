@@ -32,7 +32,7 @@ async function requestJson(url, option) {
 }
 async function loadProfile(nome) {
     console.log("loadProfile:", nome)
-    requestJson("/api/profiles/" + nome, null).then(profilo => {
+    requestJson("/api/profiles/load/" + nome, null).then(profilo => {
         console.log(profilo);
         applyProfile(profilo);
     })
@@ -47,7 +47,19 @@ function applyProfile(profile) {
     profileForm.elements.verbose.value = profile.verbose;
     profileForm.elements.batchSize.value = profile.batchSize ?? 10;
     profileForm.elements.minSize.value = profile.minSize ?? 4096;
-    profileForm.elements.extensions.value = (profile.extensions || []).join(", ");
+    
+    for (const option of profile.extensions) {
+        const checkbox = document.querySelector(`#ext-${option.replace('.', '')}`);
+        if (checkbox) {
+            checkbox.checked = true;
+            checkbox.addEventListener("change", () => {
+                if (checkbox.checked) {
+                    profileForm.elements.extensions.value = Array.from(document.querySelectorAll("#profile-extensions input:checked")).map(cb => cb.value);
+                }
+            });
+        }
+    }
+    profileForm.elements.extensions.value = profile.extensions;
     profileForm.elements.archive.value = profile.archive || "";
     profileForm.elements.backupPath.value = profile.backupPath || "";
     profileForm.elements.albumPath.value = profile.albumPath || "";
@@ -82,39 +94,19 @@ function getProfileData() {
         batchSize: Number(elements.batchSize.value),
         minSize: Number(elements.minSize.value),
         verbose: Number(elements.verbose.value),
-        extensions: elements.extensions.value.split(",").map(ext => ext.trim()).filter(Boolean)
+        extensions: Array.from(document.querySelectorAll("#profile-extensions input:checked")).map(cb => cb.value)
     };
 }
 async function saveProfile() {
-    const profileStatus = document.querySelector("#profile-status");
-    const profileSave = document.querySelector("#profile-save");
-    const elements = profileForm.elements;
     const profile = getProfileData();
-
-    profileSave.disabled = true;
-    profileStatus.textContent = "Salvataggio in corso...";
-    try {
-        const response = await fetch("/api/profiles", {
+    console.log("Profilo da salvare",profile)
+    requestJson("/api/profiles/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(profile)
+        }).then(response => {
+            console.log("Profilo salvato:", response);
         });
-        const data = await response.json();
-        if (!response.ok) {
-            profileStatus.textContent = "Errore: " + (data.error || `HTTP ${response.status}`);
-            return;
-        }
-        if (![...profileSelector.options].some(option => option.value === data.name)) {
-            profileSelector.add(new Option(data.name, data.name));
-        }
-        profileSelector.value = data.name;
-        applyProfile(data);
-        profileStatus.textContent = "Profilo salvato";
-    } catch (error) {
-        profileStatus.textContent = "Errore: " + error.message;
-    } finally {
-        profileSave.disabled = false;
-    }
 }
 
 profileSelector.addEventListener("change", () => {
