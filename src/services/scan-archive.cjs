@@ -206,13 +206,12 @@ async function readBatchRecords(archivePath, options, callback) {
   const filters = options?.filters || null;
   const sellist = options?.sellist || '*';
   const batchSize = options?.batchSize || 100;
-  let modifiedRows = [];
-  let modifiedRowsCount = 0;
-  
+
   console.log("Order by:", orderby);
   console.log("Filters:", filters);
   console.log("Sellist:", sellist);
   const db = await openDatabase(path.resolve(archivePath));
+  let modifiedRowsCount = 0;
   try {
     const conditions = [];
     const values = [];
@@ -228,19 +227,43 @@ async function readBatchRecords(archivePath, options, callback) {
         values.push(extension.startsWith(".") ? extension : `.${extension}`);
       }
     }
-    const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
-    const SQL = `SELECT ${sellist} FROM raw_files ${where} ${orderby ? `ORDER BY ${orderby}` : ""}`;
-    console.log("Executing SQL:", SQL, "with values:", values);
-    const records = await all(db, SQL);
-    for (const row of records) {
-      const record = mapArchivedRecord(row);
-      const result = await callback(record);
-      if (result) modifiedRows.push(record);
+    const where =` WHERE rowid> ? and rowid < ? and ${conditions.length ? conditions.join(" AND ") : " 1=1" }`;
+    const SQL = `SELECT ${sellist} FROM raw_files ${where} `;
+
+
+    let offset = 0;
+
+    console.log("Executing SQL:", SQL, "with values:",  [offset, offset+batchSize,...values], "batchSize:", batchSize);
+
+
+    while (true) {
+      const rows = await all(db,
+        `${SQL}`,
+        [offset, offset+batchSize,...values]
+      );
+      if (rows.length === 0) break;
+      const modifiedRows = [];
+      //console.log(rows);
+      for (const row of rows) {
+        const record = mapArchivedRecord(row);
+        const result = await callback(record, modifiedRows.length);
+        if (result) {
+          modifiedRows.push(record);
+        }
+        
+      }
+      if (modifiedRows.length > 0) {
+        await updateFiles(db, modifiedRows);
+        modifiedRowsCount += modifiedRows.length;
+      }
+      offset += batchSize;
     }
-    if (modifiedRows.length > 0) {
-      await updateFiles(db, modifiedRows);
-      modifiedRowsCount = modifiedRows.length;
-    }
+    //const records = await all(db, SQL);
+    //for (const row of records) {
+    //  const record = mapArchivedRecord(row);
+    //  const result = await callback(record);
+    //  if (result) modifiedRows.push(record);
+    //}
   } finally {
     await closeDatabase(db);
   }
@@ -458,7 +481,17 @@ async function initDB(db) {
     destPath TEXT,
     primary key (fullname)
   )`;
-
+const VSQL=`create view if not exists v_raw_files as 
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY hash
+               ORDER BY rowid
+           ) AS rn
+    FROM raw_files
+)
+WHERE rn > 1`;
   try {
     await run(db, SQL);
     const columns = await all(db, "PRAGMA table_info(raw_files)");
@@ -468,6 +501,7 @@ async function initDB(db) {
     if (!columns.some(column => column.name === "dhash")) {
       await run(db, "ALTER TABLE raw_files ADD COLUMN dhash TEXT");
     }
+    await run(db, VSQL);
   } catch (error) {
     throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
   }
