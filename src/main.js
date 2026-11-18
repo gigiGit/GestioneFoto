@@ -96,7 +96,7 @@ await scanSource(profile)
   await analisiFromArchive(job, profile).then(result => {
     console.log(job, "analysis completed:", result);
   });
-}
+});
 
 /*
 const listByName = {};
