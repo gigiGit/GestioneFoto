@@ -1,20 +1,20 @@
 import { analisiFromArchive, scanSource, analisiByName } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { writeArchiveFiles, readSomeRecords } from "./services/scan-archive.cjs";
+import { writeArchiveFiles, readSomeRecords, archiveScanFiles } from "./services/scan-archive.cjs";
 import path from 'path';
 import fs from 'node:fs';
 
 const profilo_giuliano = {
   name: "giuliano",
-  archive: "archive-giuliano.db",
-  sourceFolders: "E:\\",
+  archive: "archive-giuliano-2.db",
+  sourceFolders: ["C:\\ArchivioFoto\\backup\\giuliano", "C:\\ArchivioFoto\\backup\\roberto"],
   destDir: "C:\\ArchivioFoto",
   scanDir: "scan",
   backupPath: "backup\\giuliano",
   albumPath: "album\\giuliano",
   batchSize: 500,
   minSize: 0,
-  verbose: 0,
+  verbose: 1,
   simulazione: true,
   force: false,
   formato: "YYYYMMDD",
@@ -64,7 +64,7 @@ const profilo_roberto = {
   name: "roberto",
   archive: "archive-roberto.db",
   sourceFolders: "F:\\Photo\\Roberto",
-  destDir: "F:\\ArchivioFoto",
+  destDir: "C:\\ArchivioFoto",
   scanDir: "scan",
   backupPath: "backup\\roberto",
   albumPath: "album\\roberto",
@@ -79,7 +79,7 @@ const profilo_roberto = {
     ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 }
 await saveProfile(profilo_giuliano);
-//await saveProfile(profilo_roberto);
+await saveProfile(profilo_roberto);
 //const profile_dir=getProfilesDirectory();
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
@@ -87,6 +87,18 @@ const profile = await loadProfile("giuliano");
 //console.log(profile);
 
 //const job = "analisiDate";
+
+await scanSource(profile)
+  .then(result => {
+    console.log("Scan completed:", result);
+  });
+["hash", "exif", "thumbnail", "analisiDate"].forEach(async job => {
+  await analisiFromArchive(job, profile).then(result => {
+    console.log(job, "analysis completed:", result);
+  });
+}
+
+/*
 const listByName = {};
 function custom(file) {
   if (!listByName[file.name]) listByName[file.name] = { list: [], best: file };
@@ -116,7 +128,7 @@ await analisiFromArchive("analisiDest", profile).then((result) => {
     "\nTotalTime:", result.TotalTime);
   
 
-  const stream = fs.createWriteStream('copia.bat', { encoding: 'utf8' });
+  const stream = fs.createWriteStream('copia-roberto.bat', { encoding: 'utf8' });
   stream.write('@echo off\n');
   result.files.sort((a, b) => a.size-b.size).forEach((file) => {
     if(file.fullname==="E:\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png"){
@@ -149,7 +161,7 @@ await analisiFromArchive("analisiDest", profile).then((result) => {
 
 
 })
-
+*/
 
 /*
 const toUpdate = [];
