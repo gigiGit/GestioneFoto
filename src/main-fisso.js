@@ -1,7 +1,7 @@
-import { analisiFromArchive, scanSource, analisiByName } from './services/scanner.js';
+import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { writeArchiveFiles, readSomeRecords, archiveScanFiles } from "./services/scan-archive.cjs";
-import { calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
+import { writeArchiveFiles, readSomeRecords, archiveScanFiles, readBatchRecords } from "./services/scan-archive.cjs";
+import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
 import fs from 'node:fs';
@@ -21,6 +21,8 @@ const profilo_giuliano = {
   force: false,
   formato: "YYYYMMDD",
   filters: null,
+  orderby: null,
+  sellist: null,
   casiParticolari: {
     "2005-06-15T00:00:00.000Z": ["p1014430.jpg", "P1015578.jpg", "P1015579.jpg",
       "P1015580.jpg", "P1015585.jpg", "P1015587.jpg", "P1015589.jpg",
@@ -77,6 +79,8 @@ const profilo_roberto = {
   force: false,
   formato: "YYYYMMDD",
   filters: null,
+  orderby: null,
+  sellist: null,
   extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
     ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 }
@@ -86,117 +90,44 @@ await saveProfile(profilo_roberto);
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
 const profile = await loadProfile("giuliano");
+const archivePath = path.join(profile.destDir, profile.archive);
 //console.log(profile);
 
 //const job = "analisiDate";
+/////// Test
+//await readBatchRecords(archivePath, {sellist: profile.sellist, orderby: profile.orderby, filters: profile.filters}, (record) => {
+//  console.log("Batch record:", record);
+//});
+//////  Fine Test
+function logMemoria(etichetta = '') {
+  const mem = process.memoryUsage();
+  const toMB = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
 
-//await scanSource(profile)
-//  .then(async result => {
-//    console.log("Scan completed:", result.length);
-const archivePath = path.join(profile.destDir, profile.archive);
-const files = [];
-files.push(...await readSomeRecords(archivePath, profile.filters));
-console.log("File sul db:", files.length, files[0]);
-let c=0;
-for (const file of files){
-  c++;
-  await hashFile(file, [], profile);
-  if(c%100 === 0) console.log("lettura",file.fullname);
+  console.log(`[MEMORIA ${etichetta}]`, {
+    totaleProcesso_RSS: toMB(mem.rss),        // Memoria fisica totale (JS + C++ SQLite)
+    heapJS_Usato: toMB(mem.heapUsed),         // Oggetti e array JS (es. pendingUpdates)
+    heapJS_Allocato: toMB(mem.heapTotal),     // Spazio totale riservato da V8
+    memoriaEsterna_C: toMB(mem.external)      // Buffer e strutture C++
+  });
 }
-await writeArchiveFiles(archivePath, files);
 
-//  });
-/*
-["hash", "exif", "thumbnail", "analisiDate"].forEach(async job => {
-  await analisiFromArchive(job, profile).then(result => {
-    console.log(job, "analysis completed:", result);
+await scanSource(profile)
+  .then(result => {
+    console.log("Scan completed:", result.length);
   });
-});
-*/
-/*
-const listByName = {};
-function custom(file) {
-  if (!listByName[file.name]) listByName[file.name] = { list: [], best: file };
-  listByName[file.name].list.push(file);
-  if (file.size > listByName[file.name].best.size) listByName[file.name].best = file;
-  return false;
-}
-const job = "analisiDate";
-await analisiFromArchive(job, profile).then(
-  result => {
-    console.log("Job:", job,
-      "\nFiles Elaborati:", result.count,
-      "\nErrori:", result.errorCount,
-      "\nConteggio:", result.files.length,
-      "\nReadTime:", result.readTime,
-      "\nScanTime:", result.scanTime,
-      "\nTotalTime:", result.TotalTime);
-    
-  });
-await analisiFromArchive("analisiDest", profile).then((result) => {
-  console.log("Job: analisiDest",
-    "\nFiles Elaborati:", result.count,
-    "\nErrori:", result.errorCount,
-    "\nConteggio:", result.files.length,
-    "\nReadTime:", result.readTime,
-    "\nScanTime:", result.scanTime,
-    "\nTotalTime:", result.TotalTime);
-  
-
-  const stream = fs.createWriteStream('copia-roberto.bat', { encoding: 'utf8' });
-  stream.write('@echo off\n');
-  result.files.sort((a, b) => a.size-b.size).forEach((file) => {
-    if(file.fullname==="E:\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png"){
-      file.name="giuliano-germanna_1.png";
-      file.valido=1;
-    }
-    if(file.fullname==="E:\\1961\\01-Gennaio\\07\\giuliano-germanna(3).png"){
-      file.name="giuliano-germanna_3.png";
-      file.valido=1;
-    }
-    const riga1=`mkdir "${path.join(profile.destDir, profile.backupPath, file.destPath)}"`;
-    const riga2 = file.valido ?
-      `copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath,file.destPath, file.name)}"` :
-      `REM copy "${file.fullname}" "${path.join(profile.destDir,profile.backupPath, file.destPath, file.name)}"`;
-    stream.write(riga1 + '\n');
-    stream.write(riga2 + '\n');
-  });
-
-  stream.end(); // Chiude lo stream quando hai finito
-
-  stream.on('finish', () => {
-    console.log('Scrittura completata!');
-  });
-
-  stream.on('error', (err) => {
-    console.error('Errore durante la scrittura:', err);
-  });
-
-
-
-
-})
-*/
-
-/*
-const toUpdate = [];
-for (const name in listByName) {
-  if (listByName[name].list.length > 1) {
-    for (const f of listByName[name].list) {
-      f.valido = 0;
-      toUpdate.push(f);
-    }
-    listByName[name].best.valido = 1;
-    toUpdate.push(listByName[name].best);
-    console.log(`Duplicate name found for file: ${name} -> ${listByName[name].list.map(f => f.name+"-"+f.valido+"-"+f.size).join(", ")}`);
-  }else{
-    listByName[name].best.valido = 1;
-    toUpdate.push(listByName[name].best);
+var pendingFiles = [];
+logMemoria("before readBatchRecords");
+var modifiedCount = await readBatchRecords(archivePath, profile,
+  async (record) => {
+    const res = await setAll(record, profile);
+    return res[0] || res[1] || res[2] || res[3] || res[4];
   }
-}
-const archivePath = path.join(profile.destDir, profile.archive);
-console.log("Updating archive with files:", toUpdate.length);
-await writeArchiveFiles(archivePath, toUpdate);
-
-//await analisiByName(profile);
-*/
+);
+console.log("Modified count:", modifiedCount);
+var modifiedCount = await readBatchRecords(archivePath, profile,
+  async (record) => {
+    return analisiDest(record, null, profile);
+  }
+);
+console.log("Modified count:", modifiedCount);
+logMemoria("after readBatchRecords");

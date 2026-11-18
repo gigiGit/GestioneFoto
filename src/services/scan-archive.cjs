@@ -208,7 +208,7 @@ async function readBatchRecords(archivePath, options, callback) {
   const batchSize = options?.batchSize || 100;
   let modifiedRows = [];
   let modifiedRowsCount = 0;
-  console.log("Options:", options);
+  
   console.log("Order by:", orderby);
   console.log("Filters:", filters);
   console.log("Sellist:", sellist);
