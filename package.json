@@ -8,6 +8,7 @@
   "scripts": {
     "server": "node src/server.js",
     "test": "node --test",
+    "main-fisso": "node --max-old-space-size=4096 src/main-fisso.js",
     "web": "node src/web-server.cjs",
     "scan-cli": "node src/scan-cli.cjs --verbose --batch-size=100 --min-size=4096 --name=giuliano --source-dir=D:\\ --dest-dir=F:\\ArchivioFoto",
     "electron": "electron .",
