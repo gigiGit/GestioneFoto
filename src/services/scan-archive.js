@@ -9,6 +9,51 @@ const INSERT_SQL = `INSERT INTO raw_files (
   hash,dhash, fullname, name, ext, dt_valida, size, createdAt,
   exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, albums,valido,destPath
 ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+function initDB(db) {
+  const SQL = `CREATE TABLE IF NOT EXISTS raw_files (
+    hash TEXT,
+    dhash TEXT,
+    fullname TEXT,
+    name TEXT,
+    ext TEXT,
+    dt_valida TEXT,
+    size INTEGER,
+    createdAt TEXT,
+    exifCreateDate TEXT,
+    exifDateTimeOriginal TEXT,
+    exifGPSDateStamp TEXT,
+    exifModifyDate TEXT,
+    thumbnail TEXT,
+    albums TEXT,
+    valido Integer,
+    destPath TEXT,
+    primary key (fullname)
+  )`;
+const VSQL=`create view if not exists v_raw_files as 
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY hash
+               ORDER BY rowid
+           ) AS rn
+    FROM raw_files
+)
+WHERE rn > 1`;
+  try {
+    db.prepare(SQL).run();
+    const columns = db.prepare("PRAGMA table_info(raw_files)").all();
+    if (!columns.some(column => column.name === "valido")) {
+      db.prepare("ALTER TABLE raw_files ADD COLUMN valido INTEGER").run();
+    }
+    if (!columns.some(column => column.name === "dhash")) {
+      db.prepare( "ALTER TABLE raw_files ADD COLUMN dhash TEXT").run();
+    }
+    db.prepare(VSQL).run();
+  } catch (error) {
+    throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
+  }
+}
 
 function run(db, sql, values = []) {
   return new Promise((resolve, reject) => {
@@ -204,17 +249,14 @@ export async function readBatchRecords2(archivePath, options, callback) {
       }
       if (modifiedRows.length > batchSize) {
         for (const file of modifiedRows) {
-          uvalues = columns.map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
-          uvalues.push(file.fullname);
-          stmtUpd.run(uvalues);
+          const uvalues = columns.map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
+          stmtUpd.run([...uvalues, file.fullname]);
         }
         modifiedRowsCount += modifiedRows.length;
         modifiedRows = [];
       }
     }
     if (modifiedRows.length > batchSize) {
-      const Assignement = columns.map(column => `${column}=?`);
-      const stmtUpd = db.prepare(`UPDATE raw_files SET ${Assignement.join(", ")} WHERE fullname = ?`);
       for (const file of modifiedRows) {
         const uvalues = columns.map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
         stmtUpd.run([...uvalues, file.fullname]);
@@ -224,7 +266,6 @@ export async function readBatchRecords2(archivePath, options, callback) {
     }
   }catch(error){
     console.log(error);
-    console.log(uvalues);
     throw error;
   } finally {
     db.close();
