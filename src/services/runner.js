@@ -81,6 +81,8 @@ export async function copia(file, {  destDir, backupPath, formato, verbose }) {
     const destPath = path.join(destDir, backupPath, file.destPath, file.name);
 
     if (fs.existsSync(destPath)) {
+        console.error(`Copia ${file.fullname} to ${destPath} fallita:`, "File esistente");
+        file.stato=2;
         return false;
     }
     try {
@@ -104,23 +106,8 @@ export async function analisiDest(file, {  destDir, backupPath, formato, verbose
     const dataFormattata = formato === "YYYYMMDD" ? `${anno}${path.sep}${mese}${path.sep}${giorno}` : `${anno}${path.sep}${mese}`;
     const destinationDir = dataFormattata;
     const destPath = path.join(destDir, backupPath, destinationDir, file.name);
-    //if (file.destPath) return false;
     file.destPath = destinationDir;
-    //pendingFiles.push(file);
     return true;
-    // Implement the copy functionality here
-    /*    try {
-            if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
-            fs.mkdirSync(path.dirname(destPath), { recursive: true });
-            fs.copyFileSync(file.fullname, destPath);
-            file.destPath = destinationDir;
-            pendingFiles.push(file);
-            return true;
-        } catch (error) {
-            console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
-            return false;
-        }
-    }*/
 }
 export function hashFileFromPath(filePath) {
     return new Promise((resolve, reject) => {

@@ -6,7 +6,7 @@ import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, 
 import path from 'path';
 import fs from 'fs';
 
-const profile = await loadProfile("patty");
+const profile = await loadProfile("giuliano");
 
 const archivePath = path.join(profile.destDir, profile.archive);
 console.log(profile);

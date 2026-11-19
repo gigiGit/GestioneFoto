@@ -99,8 +99,10 @@ const profilo_patty = {
   filters: null,
   orderby: null,
   sellist: null,
-  casiParticolari: {},
-  extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+  casiParticolari: {
+    "2011-05-14T23:13:00.000Z":["venezia2011 043.jpg"]
+  },
+  extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", '.JPG',
     ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 }
 

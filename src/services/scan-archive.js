@@ -46,6 +46,7 @@ export function initDB(archivePath) {
     thumbnail TEXT,
     albums TEXT,
     valido Integer,
+    stato  integer,
     destPath TEXT,
     primary key (fullname)
   )`;
@@ -64,6 +65,11 @@ export function initDB(archivePath) {
       COLONNE.single_files.push("disco");
       db.prepare("alter table single_files add column disco TEXT").run(); 
       console.log("Updated single_files with disco column");
+    }
+    if(COLONNE.single_files.indexOf("stato") === -1) {
+      COLONNE.single_files.push("stato");
+      db.prepare("alter table single_files add column stato INTEGER").run(); 
+      console.log("Aggiornato single_files con colonna STATO");
     }
     db.prepare("drop view if exists v_files").run();
     db.prepare(`create view if not exists v_files as 

@@ -6,6 +6,8 @@
   "type": "module",
   "main": "src/electron-main.js",
   "scripts": {
+    "profili": "node src/profili.js",
+    "profili-fisso": "node src/profili-fisso.js",
     "server": "node src/server.js",
     "test": "node --test",
     "main-fisso": "node --max-old-space-size=6096 src/main-fisso.js",
