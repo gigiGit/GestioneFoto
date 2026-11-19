@@ -1,10 +1,10 @@
 import { scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { readBatchRecords, consolidaDB, initDB, logMemoria,query } from "./services/scan-archive.js";
+import { readBatchRecords, consolidaDB, initDB, logMemoria, query } from "./services/scan-archive.js";
 import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
-
+import fs from 'fs';
 //const profile_dir=getProfilesDirectory();
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
@@ -24,24 +24,61 @@ if (true) {
   /// Non serve più consolidaDB(archivePath);
   logMemoria("after scan");
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
-     (record) => {
-      return hashFile(record,  profile);
+    (record) => {
+      return hashFile(record, profile);
     }
   );
   logMemoria("after hash");
-  var modifiedCount =await readBatchRecords(archivePath, "single_files", profile,
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
-      return setAll(record,  profile);
+      return setAll(record, profile);
     }
   );
-  logMemoria("after analisiThumbnail");
-   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+  logMemoria("after setAll");
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
-      return analisiDest(record,  profile);
+      return analisiDest(record, profile);
     }
   );
   logMemoria("after analisiDest");
+  const rows = query(archivePath, "select count(*) from single_files where destPath is null", []);
+  console.log("Rows with null destPath:", rows);
   logMemoria("Fine");
+  const stream = fs.createWriteStream('copia-giuliano.bat', { encoding: 'utf8' });
+  stream.write('@echo off\n');
+
+  let destPath = query(archivePath, "select distinct destPath from single_files where destPath is not null order by destPath", []);
+  stream.write(destPath.map(dp => `mkdir "${path.join(profile.destDir, profile.backupPath, dp.destPath)}"`).join('\n') + '\n');
+  logMemoria("after destPath");
+
+  destPath = null;
+  logMemoria("after azzeramento destPath");
+
+  const immagini = query(archivePath, "select * from single_files where destPath is not null order by size", []);
+  logMemoria("after immagini");
+  immagini.forEach((file) => {
+    if (file.fullname === "E:\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png") {
+      file.name = "giuliano-germanna_1.png";
+      file.valido = 1;
+    }
+    if (file.fullname === "E:\\1961\\01-Gennaio\\07\\giuliano-germanna(3).png") {
+      file.name = "giuliano-germanna_3.png";
+      file.valido = 1;
+    }
+
+    const riga2 = file.valido ?
+      `copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"` :
+      `REM copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"`;
+
+    stream.write(riga2 + '\n');
+  });
+  stream.end(); // Chiude lo stream quando hai finito
+  stream.on('finish', () => {
+    console.log('Scrittura completata!');
+  });
+  stream.on('error', (err) => {
+    console.error('Errore durante la scrittura:', err);
+  });
 }
 if (false) {
   logMemoria("before scan");

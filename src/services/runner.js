@@ -96,7 +96,8 @@ export async function copia(file, { force = false, destDir, backupPath, formato,
 }
 
 export async function analisiDest(file, { force = false, destDir, backupPath, formato, verbose }) {
-    if (!file.valido && !file.dt_valida) return false;
+    if (file.destPath) return false;
+    if (!file.dt_valida) return false;
     const data = new Date(file.dt_valida)
     const anno = data.getFullYear();
     const mese = data.toLocaleString('it-IT', { month: 'long' }); // "novembre" (usa 'short' per "nov")
