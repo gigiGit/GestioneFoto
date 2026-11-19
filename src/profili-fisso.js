@@ -5,13 +5,13 @@ import fs from 'node:fs';
 
 const profilo_giuliano = {
   name: "giuliano",
-  archive: "archive-giuliano-2.db",
+  archive: "archive-giuliano.db",
   sourceFolders: [ "E:\\MediaBackup","F:\\TarPhoto\\Giuliano","H:\\DeTarPhoto","H:\\Immagini","H:\\IsoPhoto","K:\\","N:\\Photo\\Giuliano"],
   destDir: "H:\\ArchivioFoto",
   scanDir: "scan",
   backupPath: "giuliano\\backup",
   albumPath: "giuliano\\album",
-  batchSize: 100,
+  batchSize: 500,
   minSize: 0,
   verbose: 1,
   simulazione: true,
@@ -81,6 +81,52 @@ const profilo_roberto = {
   extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
     ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 }
+
+const profilo_patty = {
+  name: "patty",
+  archive: "archive-patty.db",
+  sourceFolders: [ "F:\\TarPhoto\\Patty"],
+  destDir: "H:\\ArchivioFoto",
+  scanDir: "scan",
+  backupPath: "patty\\backup",
+  albumPath: "patty\\album",
+  batchSize: 500,
+  minSize: 0,
+  verbose: 1,
+  simulazione: true,
+  force: false,
+  formato: "YYYYMMDD",
+  filters: null,
+  orderby: null,
+  sellist: null,
+  casiParticolari: {},
+  extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+    ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+}
+
+const profilo_paola= {
+  name: "paola",
+  archive: "archive-paola.db",
+  sourceFolders: [ "F:\\TarPhoto\\Paola"],
+  destDir: "H:\\ArchivioFoto",
+  scanDir: "scan",
+  backupPath: "paola\\backup",
+  albumPath: "paola\\album",
+  batchSize: 500,
+  minSize: 0,
+  verbose: 1,
+  simulazione: true,
+  force: false,
+  formato: "YYYYMMDD",
+  filters: null,
+  orderby: null,
+  sellist: null,
+  casiParticolari: {},
+  extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+    ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+}
 await saveProfile(profilo_giuliano);
 await saveProfile(profilo_roberto);
+await saveProfile(profilo_patty);
+await saveProfile(profilo_paola);
 
