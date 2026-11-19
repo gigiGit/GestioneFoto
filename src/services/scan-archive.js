@@ -20,6 +20,7 @@ export function initDB(archivePath) {
   const db = new Database(path.resolve(archivePath));
   const SQL = `CREATE TABLE IF NOT EXISTS raw_files (
     hash TEXT,
+    disco TEXT,
     fullname TEXT,
     name TEXT,
     ext TEXT,
@@ -31,6 +32,7 @@ export function initDB(archivePath) {
   )`;
   const VSQL = `CREATE TABLE IF NOT EXISTS single_files (
     hash TEXT,
+    disco TEXT,
     fullname TEXT,
     name TEXT,
     ext TEXT,
@@ -53,6 +55,16 @@ export function initDB(archivePath) {
     db.prepare(VSQL).run();
     COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
     COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
+    if(COLONNE.raw_files.indexOf("disco") === -1) {
+      COLONNE.raw_files.push("disco");
+      db.prepare("alter table raw_files add column disco TEXT").run();
+      console.log("Updated raw_files with disco column");
+    }
+    if(COLONNE.single_files.indexOf("disco") === -1) {
+      COLONNE.single_files.push("disco");
+      db.prepare("alter table single_files add column disco TEXT").run(); 
+      console.log("Updated single_files with disco column");
+    }
     db.prepare("drop view if exists v_files").run();
     db.prepare(`create view if not exists v_files as 
                 select ${COLONNE.raw_files.join(", ")} from raw_files

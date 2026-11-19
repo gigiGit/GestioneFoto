@@ -17,12 +17,14 @@ if (true) {
   logMemoria("Inizio");
   initDB(archivePath);
   logMemoria("before scan");
-  await scanSource(profile)
+    await scanSource(profile)
     .then(result => {
       console.log("Scan completed:", result.length);
     });
   /// Non serve più consolidaDB(archivePath);
   logMemoria("after scan");
+}
+if(false){
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
       return hashFile(record, profile);
@@ -57,18 +59,18 @@ if (true) {
   const immagini = query(archivePath, "select * from single_files where destPath is not null order by size", []);
   logMemoria("after immagini");
   immagini.forEach((file) => {
-    if (file.fullname === "E:\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png") {
+    if (file.fullname === "\\1961\\01-Gennaio\\07\\giuliano-germanna(1).png") {
       file.name = "giuliano-germanna_1.png";
       file.valido = 1;
     }
-    if (file.fullname === "E:\\1961\\01-Gennaio\\07\\giuliano-germanna(3).png") {
+    if (file.fullname === "\\1961\\01-Gennaio\\07\\giuliano-germanna(3).png") {
       file.name = "giuliano-germanna_3.png";
       file.valido = 1;
     }
 
     const riga2 = file.valido ?
-      `copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"` :
-      `REM copy "${file.fullname}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"`;
+      `copy "${path.join(file.disco + ":", file.fullname)}" "${path.join( profile.destDir, profile.backupPath, file.destPath, file.name)}"` :
+      `REM copy "${path.join(file.disco + ":", file.fullname)}" "${path.join( profile.destDir, profile.backupPath, file.destPath, file.name)}"`;
 
     stream.write(riga2 + '\n');
   });

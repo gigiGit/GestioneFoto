@@ -2,9 +2,9 @@ import path from "node:path";
 import fs from "node:fs";
 
 
-import {hashFileFromPath, calcolaDHashHex,casiParticolari , changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+import { hashFileFromPath, calcolaDHashHex, casiParticolari, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 
-import { insertFiles,readSomeRecords,consolidaDB } from "./scan-archive.js";
+import { insertFiles, readSomeRecords, consolidaDB } from "./scan-archive.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -39,7 +39,7 @@ export async function analisiFromMemory(funcName, parametri, customFunc) {
   const archivePath = path.join(parametri.destDir, parametri.archive);
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath, parametri.filters,parametri.orderby,parametri.sellist));
+    files.push(...await readSomeRecords(archivePath, parametri.filters, parametri.orderby, parametri.sellist));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
@@ -58,8 +58,8 @@ export async function analisiFromMemory(funcName, parametri, customFunc) {
 
       break;
     case "copia": cb = copia; break;
-    case "analisiDate": cb = analisiDate;break;
-    case "casiParticolari": cb = casiParticolari;break;
+    case "analisiDate": cb = analisiDate; break;
+    case "casiParticolari": cb = casiParticolari; break;
     case "hash": cb = hashFile; break;
     case "analisiAlbum": cb = analisiAlbum; break;
     case "changeFileDate": cb = changeFileDate; break;
@@ -112,9 +112,14 @@ export async function scanSource(parametri) {
   const files = [];
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath,"v_files",{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
+    files.push(...await readSomeRecords(archivePath, "v_files", { sellist: "disco,fullname,name,ext,createdAt,albums,size,hash,valido" }));
     for (const file of files) {
-      pathFile[file.fullname] = file;
+      let NoDiskPath = file.fullname;
+      if (file.fullname.charAt(1) === ":") {
+        NoDiskPath = path.sep + file.fullname.split(path.sep).slice(1).join(path.sep);
+        file.fullname = NoDiskPath;
+      }
+      pathFile[NoDiskPath] = file;
     }
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -156,10 +161,17 @@ export async function scanSource(parametri) {
         const stats = fs.statSync(filePath);
         const name = path.basename(filePath);
         const normalizedPath = path.normalize(filePath);
-        const existingFile = pathFile[filePath];
-        if (existingFile) continue;
+        let NoDiskPath = filePath
+        let disco = '';
+        if (normalizedPath.charAt(1) === ":") {
+          NoDiskPath = path.sep + filePath.split(path.sep).slice(1).join(path.sep);
+          disco = normalizedPath.charAt(0);
+        }
+        let existingFile = pathFile[NoDiskPath];
+        if (existingFile || pathFile[filePath]) continue;
         const file = {
-          fullname: filePath,
+          disco: disco,
+          fullname: NoDiskPath,
           ext: path.extname(name),
           name,
           size: stats.size,
@@ -169,11 +181,11 @@ export async function scanSource(parametri) {
           valido: 1
         };
 
-        pathFile[file.fullname] = file;
+        pathFile[NoDiskPath] = file;
         pendingFiles.push(file);
         if (pendingFiles.length >= parametri.batchSize) {
           insertFiles(archivePath, pendingFiles);
-          console.log(`${files.length} Wrote ${pendingFiles.length} new files to archive: ${normalizedPath}`);
+          console.log(`${Object.keys(pathFile).length} Wrote ${pendingFiles.length} new files to archive: ${NoDiskPath}`);
           pendingFiles = [];
         }
       }
