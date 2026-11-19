@@ -6,17 +6,17 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 export async function setAll(record, profile) {
     const tasks = [
-        //hashFile(record, null, profile),
-        casiParticolari(record, null, profile),
-        analisiExif(record, null, profile),
-        analisiThumbnail(record, null, profile),
-        analisiDate(record, null, profile),
+        //hashFile(record,  profile),
+        casiParticolari(record,  profile),
+        analisiExif(record,  profile),
+        analisiThumbnail(record, profile),
+        analisiDate(record,  profile),
     ];
     const res = await Promise.all(tasks);
     return res[0] || res[1] || res[2] || res[3];
 }
 
-export async function casiParticolari(file, pendingFiles, option) {
+export async function casiParticolari(file,  option) {
     let mod = false;
     if (option.casiParticolari) {
         for (const date in option.casiParticolari) {
@@ -211,7 +211,7 @@ export async function analisiThumbnail(file, parametri) {
     ]);
     const THUMBNAIL_SIZE = 400;
     const THUMBNAIL_VERSION = 2;
-    const { force = false, verbose } = parametri;
+
     if (file.thumbnail)
         return false;
     const extension = path.extname(file.fullname).toLowerCase();
