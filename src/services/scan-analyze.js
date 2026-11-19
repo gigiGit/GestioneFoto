@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readArchiveFiles, writeArchiveFiles } from "./scan-archive.cjs";
+import { readArchiveFiles, writeArchiveFiles } from "./scan-archive.js";
 
 import exifr from "exifr";
 

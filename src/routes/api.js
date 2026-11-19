@@ -4,7 +4,7 @@ const router = express.Router();
 import fs from 'fs';
 import path from 'path';
 import { analisiFromMemory, scanSource } from '../services/scanner.js';
-import { readSomeRecords, writeArchiveFiles, selectValidDuplicate, updateArchiveRecord } from '../services/scan-archive.cjs';
+import { readSomeRecords, writeArchiveFiles, selectValidDuplicate, updateArchiveRecord } from '../services/scan-archive.js';
 const profili = {};
 // API di verifica server
 router.get('/health', (req, res) => {

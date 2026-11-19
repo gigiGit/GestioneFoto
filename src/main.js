@@ -1,4 +1,4 @@
-import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
+import { scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
 import { readBatchRecords, consolidaDB, initDB, logMemoria,query } from "./services/scan-archive.js";
 import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
@@ -11,7 +11,7 @@ import path from 'path';
 const profile = await loadProfile("giuliano");
 
 const archivePath = path.join(profile.destDir, profile.archive);
-//console.log(profile);
+console.log(profile);
 
 if (true) {
   logMemoria("Inizio");

@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 
-import { writeArchiveFiles, readBatchRecords } from "./scan-archive.cjs";
+
 import {hashFileFromPath, calcolaDHashHex,casiParticolari , changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
 
 import { insertFiles,readSomeRecords,consolidaDB } from "./scan-archive.js";
@@ -95,70 +95,6 @@ export async function analisiFromMemory(funcName, parametri, customFunc) {
 }
 
 
-export async function analisiFromDb(funcName, parametri, customFunc) {
-  let count = 0;
-  let errorCount = 0;
-  let pendingFiles = [];
-  const files = [];
-  const dt1 = new Date();
-  let cb = null;
-
-  let option = parametri || {};
-  switch (funcName) {
-    case "exif": cb = analisiExif; break;
-    case "thumbnail": cb = analisiThumbnail; break;
-    case "analisiDest": cb = analisiDest; break;
-    case "linkAlbum":
-      cb = linkAlbum;
-      if (!canCreateSymlinks(parametri.destDir)) {
-        cb = noLink;
-      }
-
-      break;
-    case "copia": cb = copia; break;
-    case "analisiDate": cb = analisiDate; break;
-    case "casiparticolari": cb = casiParticolari; break;
-    case "hash": cb = hashFile; break;
-    case "analisiAlbum": cb = analisiAlbum; break;
-    case "changeFileDate": cb = changeFileDate; break;
-    case "dhash": cb = calcolaDHashHex; break;
-    default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
-      break;
-  }
-  if (!option.batchSize) option.batchSize = 500;
-
-  console.log(`Starting analysis for function: ${funcName} Files da analizzare ${files.length}`);
-  const dt2 = new Date();
-  console.log(`Time elapsed since start: ${dt2 - dt1} ms`);
-  const archivePath = path.join(parametri.destDir, parametri.archive);
-  console.log("archivePath:", archivePath);
-  try {
-    fs.accessSync(archivePath);
-    await readBatchRecords(archivePath, parametri.filters, (async file => {
-      const exitCode = await cb(file, pendingFiles, option);
-      if (exitCode === false) errorCount++;
-      count++;
-      if (option.verbose && count % option.batchSize === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
-      if (pendingFiles.length >= option.batchSize) {
-        await writeArchiveFiles(archivePath, pendingFiles);
-        pendingFiles = [];
-      }
-    }));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-
-
-  if (pendingFiles.length > 0) {
-    await writeArchiveFiles(archivePath, pendingFiles);
-  }
-  console.log(`Analysis completed for function: ${funcName}`);
-  console.log(`Total files processed: ${count}`);
-  console.log(`Total errors: ${errorCount}`);
-  const dt3 = new Date();
-  console.log(`Total time elapsed: ${dt3 - dt1} ms`);
-  return { errorCount, count, files, readTime: dt2 - dt1, scanTime: dt3 - dt2, TotalTime: dt3 - dt1 };
-}
 
 /** legge i file presenti nelle SourceDir specificate in parametri.sourceFolders,
  *  e aggiorna l'archivio.
