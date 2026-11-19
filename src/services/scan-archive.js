@@ -50,7 +50,7 @@ export function initDB(archivePath) {
     primary key (fullname)
   )`;
   try {
-    db.prepare("drop table if exists raw_files").run();
+    //db.prepare("drop table if exists raw_files").run();
     db.prepare(SQL).run();
     db.prepare(VSQL).run();
     COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
@@ -276,4 +276,29 @@ export function query(archivePath, SQL, values) {
     db.close();
   }
   return result;
+}
+export function updateArchiveRecord(archivePath, file) {
+  // da implementare
+  if(!file.fullname) return false;
+  const arr = Object.keys(file).map(key => {
+    if (key !== "fullname") 
+      return key;
+  });
+
+  //const db = new Database(path.resolve(archivePath));
+
+  try {
+    const columns = COLONNE["single_files"];
+    const setClause = arr.map(col => `${col} = ?`).join(", ");
+    const values = arr.map(col => file[col]);
+    const SQL = `UPDATE single_files SET ${setClause} WHERE fullname = ?`;
+    values.push(file.fullname);
+    console.log("Columns to update:", arr);
+    console.log("SQL:", SQL);
+    //db.prepare(SQL).run(values);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    //db.close();
+  }
 }

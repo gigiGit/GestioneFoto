@@ -196,38 +196,37 @@
                             <td>Cartella Sorgente</td>
                             <!-- <td><input id="profile-source" name="sourceFolders" type="text" required></td> -->
                             <td><table id="profile-source" name="sourceFolders"></table></td>
-                            <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-source">Scegli...</button></td>
+                            <td><input type="file" webkitdirectory directory></td>
                         </tr>
                         <tr>
                             <td>Cartella Destinazione</td>
                             <td><input id="profile-dest" name="destDir" type="text" required></td>
                             <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-dest">Scegli...</button></td>
+                                    data-directory-target="profile-dest" onclick="chooseDirectory('profile-dest')">Scegli...</button></td>
                         </tr>
                         <tr>
                             <td>Cartella Scan</td>
                             <td><input id="profile-scan" name="scanDir" type="text" required></td>
                             <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-scan">Scegli...</button></td>
+                                    data-directory-target="profile-scan" onclick="chooseDirectory('profile-scan')">Scegli...</button></td>
                         </tr>
                         <tr>
                             <td>Database Archivio</td>
                             <td><input id="profile-archive" name="archive" type="text" required></td>
                             <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-archive">Scegli...</button></td>
+                                    data-directory-target="profile-archive" onclick="chooseDirectory('profile-archive')">Scegli...</button></td>
                         </tr>
                         <tr>
                             <td>Cartella Backup</td>
                             <td><input id="profile-backup" name="backupPath" type="text" required></td>
                             <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-backup">Scegli...</button></td>
+                                    data-directory-target="profile-backup" onclick="chooseDirectory('profile-backup')">Scegli...</button></td>
                         </tr>
                         <tr>
                             <td>Cartella Album</td>
                             <td><input id="profile-album" name="albumPath" type="text" required></td>
                             <td><button class="secondary-button" type="button"
-                                    data-directory-target="profile-album">Scegli...</button></td>
+                                    data-directory-target="profile-album" onclick="chooseDirectory('profile-album')">Scegli...</button></td>
                         </tr>
 
                         <tr>

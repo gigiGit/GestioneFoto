@@ -291,6 +291,19 @@ function goToRecord(index) {
         });
     }
 }
+function chooseDirectory(event) {
+    const input = event.target;
+    const files = input.files;
+    if (files.length > 0) {
+        const dirPath = files[0].webkitRelativePath.split("/")[0];
+        const targetId = input.closest("tr").querySelector("input[type='text']").id;
+        const targetInput = document.getElementById(targetId);
+        if (targetInput) {
+            targetInput.value = dirPath;
+        }
+        console.log("Choosing directory for", targetId, "selected:", dirPath);
+    }
+}
 
 function goFirst() {
     goToRecord(0);
