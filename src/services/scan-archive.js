@@ -216,7 +216,7 @@ export function consolidaDB(archivePath) {
     const stmt = `
     INSERT INTO single_files (${COLONNE["raw_files"].join(", ")})
       SELECT ${COLONNE["raw_files"].join(", ")}
-      FROM raw_files WHERE hash NOT IN (SELECT hash FROM single_files)`;
+    FROM raw_files WHERE hash NOT IN (SELECT hash FROM single_files)`;
     //console.log("Executing consolidation SQL:", stmt);
     db.prepare(stmt).run();
     //db.prepare("delete from raw_files where hash in (select hash from single_files)").run();
