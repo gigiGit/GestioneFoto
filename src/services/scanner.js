@@ -109,10 +109,10 @@ export async function scanSource(parametri) {
   const pathFile = {};
   const archivePath = path.join(parametri.destDir, parametri.archive);
   console.log("SourceDir:", parametri.sourceFolders, "\nArchive:", parametri.archive, "\nDestDir:", parametri.destDir, "\nArchivePath:", archivePath);
-  const files = [];
+  let files = [];
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath, "v_files", { sellist: "disco,fullname,name,ext,createdAt,albums,size,hash,valido" }));
+    files = readSomeRecords(archivePath, "v_files", { sellist: "disco,fullname,name,ext,createdAt,albums,size,hash,valido" });
     for (const file of files) {
       let NoDiskPath = file.fullname;
       if (file.fullname.charAt(1) === ":") {
@@ -121,6 +121,7 @@ export async function scanSource(parametri) {
       }
       pathFile[NoDiskPath] = file;
     }
+    //console.log(`Loaded ${files.length} files from archive`, files[2]);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
