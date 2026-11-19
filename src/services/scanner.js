@@ -176,7 +176,7 @@ export async function scanSource(parametri) {
   const files = [];
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath,"raw_files",{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
+    files.push(...await readSomeRecords(archivePath,"v_files",{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
     for (const file of files) {
       pathFile[file.fullname] = file;
     }
@@ -236,7 +236,7 @@ export async function scanSource(parametri) {
         pathFile[file.fullname] = file;
         pendingFiles.push(file);
         if (pendingFiles.length >= parametri.batchSize) {
-          await insertFiles(archivePath, pendingFiles);
+          insertFiles(archivePath, pendingFiles);
           console.log(`${files.length} Wrote ${pendingFiles.length} new files to archive: ${normalizedPath}`);
           pendingFiles = [];
         }

@@ -51,8 +51,13 @@ export function initDB(archivePath) {
     db.prepare("drop table if exists raw_files").run();
     db.prepare(SQL).run();
     db.prepare(VSQL).run();
-    COLONNE.raw_files.push(...db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name));
-    COLONNE.single_files.push(...db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name));
+    COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
+    COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
+    db.prepare("drop view if exists v_files").run();
+    db.prepare(`create view if not exists v_files as 
+                select ${COLONNE.raw_files.join(", ")} from raw_files
+                union 
+                select ${COLONNE.raw_files.join(", ")} from single_files;`).run();
   } catch (error) {
     throw new Error(`Unable to initialize DB: ${error.message}`, { cause: error });
   }
@@ -138,9 +143,11 @@ export async function readBatchRecords(archivePath, TABELLA, options, callback) 
   console.log("Filters:", filters);
   console.log("Sellist:", sellist);
   const db = new Database(path.resolve(archivePath));
+  if (COLONNE.raw_files.length === 0) COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
+  if (COLONNE.single_files.length === 0) COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
+
   const Assignement = COLONNE[TABELLA].map(column => `${column}=?`);
   let modifiedRowsCount = 0;
-  let uvalues = null;
   try {
     const conditions = [];
     const values = [];
@@ -183,7 +190,7 @@ export async function readBatchRecords(archivePath, TABELLA, options, callback) 
         modifiedRows = [];
       }
     }
-    if (modifiedRows.length > batchSize) {
+    if (modifiedRows.length > 0) {
       for (const file of modifiedRows) {
         const uvalues = COLONNE[TABELLA].map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
         stmtUpd.run([...uvalues, file.fullname]);
@@ -202,19 +209,14 @@ export async function readBatchRecords(archivePath, TABELLA, options, callback) 
 
 export function consolidaDB(archivePath) {
   const db = new Database(archivePath);
-  COLONNE.raw_files.push(...db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name));
-  COLONNE.single_files.push(...db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name));
+  if (COLONNE.raw_files.length === 0) COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
+  if (COLONNE.single_files.length === 0) COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
 
   try {
     const stmt = `
     INSERT INTO single_files (${COLONNE["raw_files"].join(", ")})
-    SELECT ${COLONNE["raw_files"].join(", ")}
-    FROM raw_files
-    WHERE hash NOT IN (
-        SELECT hash
-        FROM single_files
-    )
-`;
+      SELECT ${COLONNE["raw_files"].join(", ")}
+      FROM raw_files WHERE hash NOT IN (SELECT hash FROM single_files)`;
     //console.log("Executing consolidation SQL:", stmt);
     db.prepare(stmt).run();
     //db.prepare("delete from raw_files where hash in (select hash from single_files)").run();
@@ -246,4 +248,20 @@ export function readSomeRecords(archivePath, TABELLA, options = {}) {
   }
   return records.map(mapArchivedRecord);
 }
+export function mapValues(TABELLA, object) {
+  return COLONNE[TABELLA].map(column => column.name === "albums" ? JSON.stringify(object[column]) : object[column]);
+}
 
+export function query(archivePath, SQL, values) {
+  const db = new Database(path.resolve(archivePath));
+  let result = [];
+  try {
+    const stmt = db.prepare(SQL);
+    result = stmt.all(values);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    db.close();
+  }
+  return result;
+}

@@ -1,6 +1,6 @@
 import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { readBatchRecords, consolidaDB, initDB, logMemoria } from "./services/scan-archive.js";
+import { readBatchRecords, consolidaDB, initDB, logMemoria,query } from "./services/scan-archive.js";
 import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
@@ -9,13 +9,13 @@ import path from 'path';
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
 const profile = await loadProfile("giuliano");
-profile.archive = "test.db"
+
 const archivePath = path.join(profile.destDir, profile.archive);
 //console.log(profile);
 
 if (true) {
   logMemoria("Inizio");
-  //initDB(archivePath);
+  initDB(archivePath);
   logMemoria("before scan");
   await scanSource(profile)
     .then(result => {
@@ -23,12 +23,24 @@ if (true) {
     });
   /// Non serve più consolidaDB(archivePath);
   logMemoria("after scan");
-
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
-    async (record) => {
-      return await setAll(record, profile);
+     (record) => {
+      return hashFile(record,  profile);
     }
   );
+  logMemoria("after hash");
+  var modifiedCount =await readBatchRecords(archivePath, "single_files", profile,
+    (record) => {
+      return analisiThumbnail(record,  profile);
+    }
+  );
+  logMemoria("after analisiThumbnail");
+   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+    (record) => {
+      return analisiDest(record, null, profile);
+    }
+  );
+  logMemoria("after analisiDest");
   logMemoria("Fine");
 }
 if (false) {
