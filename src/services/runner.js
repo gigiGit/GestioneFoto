@@ -35,7 +35,7 @@ export async function casiParticolari(file,  option) {
     return mod;
 }
 export async function calcolaDHashHex(file, { force = false, destDir, backupPath, formato, verbose }) {
-    const filePath = file.fullname;
+    const filePath = path.join(file.disco + ":", file.fullname);
     try {
         const { data } = await sharp(filePath)
             .rotate()
@@ -87,7 +87,7 @@ export async function copia(file, { force = false, destDir, backupPath, formato,
     try {
         if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
-        fs.copyFileSync(file.fullname, destPath);
+        fs.copyFileSync(path.join(file.disco + ":", file.fullname), destPath);
         return true;
     } catch (error) {
         console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
@@ -137,7 +137,7 @@ export async function hashFile(file, { force = false }) {
     try {
         const Hash = await new Promise((resolve, reject) => {
             const hash = createHash("sha256");
-            const stream = createReadStream(file.fullname);
+            const stream = createReadStream(path.join(file.disco + ":", file.fullname));
             stream.on("error", reject);
             stream.on("data", chunk => hash.update(chunk));
             stream.on("end", () => resolve(hash.digest("hex")));
@@ -186,7 +186,7 @@ export async function analisiExif(file, parametri) {
         return false;
     }
     try {
-        const exifData = await exifr.parse(file.fullname) ?? null;
+        const exifData = await exifr.parse(path.join(file.disco + ":", file.fullname)) ?? null;
         file.exifCreateDate = exifData?.CreateDate ? new Date(exifData.CreateDate).toISOString() : null;
         file.exifDateTimeOriginal = exifData?.DateTimeOriginal ? new Date(exifData.DateTimeOriginal).toISOString() : null;
         file.exifGPSDateStamp = exifData?.GPSDateStamp ? new Date(exifData.GPSDateStamp).toISOString() : file.exifCreateDate;
@@ -222,7 +222,7 @@ export async function analisiThumbnail(file, parametri) {
     }
 
     try {
-        const thumbnail = await sharp(file.fullname)
+        const thumbnail = await sharp(path.join(file.disco + ":", file.fullname))
             .rotate()
             .resize({ width: THUMBNAIL_SIZE, fit: "inside", withoutEnlargement: true })
             .jpeg({ quality: 80 })
@@ -254,7 +254,7 @@ export async function analisiAlbum(file, { force = false }) {
     if (!(force || file.albums === null || file.albums === undefined)) return false;
 
     try {
-        const normalizedPath = path.normalize(file.fullname);
+        const normalizedPath = path.normalize(file.disco+":"+file.fullname);
         const dirs = normalizedPath.split(path.sep);
         file.albums = dirs.slice(1, -1);
         //pendingFiles.push(file);

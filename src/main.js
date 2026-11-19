@@ -17,14 +17,12 @@ if (true) {
   logMemoria("Inizio");
   initDB(archivePath);
   logMemoria("before scan");
-    await scanSource(profile)
+  await scanSource(profile)
     .then(result => {
       console.log("Scan completed:", result.length);
     });
   /// Non serve più consolidaDB(archivePath);
   logMemoria("after scan");
-}
-if(false){
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
       return hashFile(record, profile);
@@ -69,8 +67,8 @@ if(false){
     }
 
     const riga2 = file.valido ?
-      `copy "${path.join(file.disco + ":", file.fullname)}" "${path.join( profile.destDir, profile.backupPath, file.destPath, file.name)}"` :
-      `REM copy "${path.join(file.disco + ":", file.fullname)}" "${path.join( profile.destDir, profile.backupPath, file.destPath, file.name)}"`;
+      `copy "${path.join(file.disco ? file.disco + ":" : "", file.fullname)}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"` :
+      `REM copy "${path.join(file.disco ? file.disco + ":" : "", file.fullname)}" "${path.join(profile.destDir, profile.backupPath, file.destPath, file.name)}"`;
 
     stream.write(riga2 + '\n');
   });

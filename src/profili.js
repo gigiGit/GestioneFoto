@@ -5,13 +5,13 @@ import fs from 'node:fs';
 
 const profilo_giuliano = {
   name: "giuliano",
-  archive: "archive-giuliano-2.db",
-  sourceFolders: ["C:\\ArchivioFoto\\backup\\giuliano", "C:\\ArchivioFoto\\backup\\roberto"],
+  archive: "archive-giuliano.db",
+  sourceFolders: ["C:\\ArchivioFoto\\backup\\giuliano"],
   destDir: "C:\\ArchivioFoto",
   scanDir: "scan",
   backupPath: "giuliano\\backup",
   albumPath: "giuliano\\album",
-  batchSize: 100,
+  batchSize: 500,
   minSize: 0,
   verbose: 1,
   simulazione: true,
