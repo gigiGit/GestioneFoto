@@ -31,7 +31,7 @@ if (true) {
   logMemoria("after hash");
   var modifiedCount =await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
-      return analisiThumbnail(record,  profile);
+      return setAll(record,  profile);
     }
   );
   logMemoria("after analisiThumbnail");
