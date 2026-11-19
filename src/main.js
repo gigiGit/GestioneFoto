@@ -5,6 +5,7 @@ import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, 
 
 import path from 'path';
 import fs from 'fs';
+
 const profile = await loadProfile("patty");
 
 const archivePath = path.join(profile.destDir, profile.archive);
@@ -20,22 +21,30 @@ if (true) {
     });
   /// Non serve più consolidaDB(archivePath);
   logMemoria("after scan");
-  const noHash = query(archivePath, "select * from single_files where hash is null", []);
+  const noHash = query(archivePath, "select * from raw_files where hash is null", []);
   console.log("Records with null hash:", noHash);
-}
-if (false) {
+  if(noHash.length>0) {
+    var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+      (record) => {
+        return hashFile(record, profile);
+      }
+    );
+  }
+  logMemoria("after hash");
+  profile.verbose = 1;
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
-      return hashFile(record, profile);
+      return casiParticolari(record, profile);
     }
   );
-  logMemoria("after hash");
+  profile.verbose = 0;
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
       return setAll(record, profile);
     }
   );
   logMemoria("after setAll");
+}
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
       return analisiDest(record, profile);
@@ -44,17 +53,23 @@ if (false) {
   logMemoria("after analisiDest");
   const rows = query(archivePath, "select count(*) from single_files where destPath is null", []);
   console.log("Rows with null destPath:", rows);
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+    (record) => {
+      return copia(record, profile);
+    }
+  );
+  console.log("Copia completed:", modifiedCount);
   logMemoria("Fine");
+
+if(false) {
   const stream = fs.createWriteStream(`copia-${profile.name}.bat`, { encoding: 'utf8' });
   stream.write('@echo off\n');
-
   let destPath = query(archivePath, "select distinct destPath from single_files where destPath is not null order by destPath", []);
   stream.write(destPath.map(dp => `mkdir "${path.join(profile.destDir, profile.backupPath, dp.destPath)}"`).join('\n') + '\n');
   logMemoria("after destPath");
 
   destPath = null;
   logMemoria("after azzeramento destPath");
-
   const immagini = query(archivePath, "select * from single_files where destPath is not null order by size", []);
   logMemoria("after immagini");
   immagini.forEach((file) => {

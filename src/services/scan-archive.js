@@ -189,7 +189,7 @@ export async function readBatchRecords(archivePath, TABELLA, options, callback) 
     for (const row of rows) {
       //for (const row of stmt.iterate(values)) {
       const record = mapArchivedRecord(row);
-      const result = await callback(record, modifiedRows.length);
+      const result = await callback(record,options);
       if (result) {
         modifiedRows.push(record);
       }
