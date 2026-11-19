@@ -39,8 +39,7 @@ var modifiedCount = await readBatchRecords(archivePath, profile,
     cnt++;
     if (cnt % 100 === 0)
       logMemoria(`Nel batch ${cnt}/${count}`);
-    const res = await setAll(record, profile);
-    return res[0] || res[1] || res[2] || res[3] || res[4];
+    return await setAll(record, profile);
   }
 );
 console.log("Modified count:", modifiedCount);

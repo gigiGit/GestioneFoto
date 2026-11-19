@@ -1,42 +1,59 @@
 import { analisiFromMemory, analisiFromDb, scanSource } from './services/scanner.js';
 import { getProfilesDirectory, listProfiles, saveProfile, loadProfile } from './services/profileManager.js';
-import { writeArchiveFiles, readSomeRecords, archiveScanFiles, readBatchRecords } from "./services/scan-archive.cjs";
+import { readBatchRecords, consolidaDB, initDB, logMemoria } from "./services/scan-archive.js";
 import { setAll, casiParticolari, calcolaDHashHex, changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./services/runner.js";
 
 import path from 'path';
-import fs from 'node:fs';
 
 //const profile_dir=getProfilesDirectory();
 //console.log(profile_dir);
 //console.log("lista:",await listProfiles());
 const profile = await loadProfile("giuliano");
+profile.archive = "test.db"
 const archivePath = path.join(profile.destDir, profile.archive);
 //console.log(profile);
 
-//const job = "analisiDate";
-/////// Test
-//await readBatchRecords(archivePath, {sellist: profile.sellist, orderby: profile.orderby, filters: profile.filters}, (record) => {
-//  console.log("Batch record:", record);
-//});
-//////  Fine Test
-function logMemoria(etichetta = '') {
-  const mem = process.memoryUsage();
-  const toMB = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
-
-  console.log(`[MEMORIA ${etichetta}]`, {
-    totaleProcesso_RSS: toMB(mem.rss),        // Memoria fisica totale (JS + C++ SQLite)
-    heapJS_Usato: toMB(mem.heapUsed),         // Oggetti e array JS (es. pendingUpdates)
-    heapJS_Allocato: toMB(mem.heapTotal),     // Spazio totale riservato da V8
-    memoriaEsterna_C: toMB(mem.external)      // Buffer e strutture C++
-  });
-}
 if (true) {
+  logMemoria("Inizio");
+  //initDB(archivePath);
+  logMemoria("before scan");
   await scanSource(profile)
     .then(result => {
       console.log("Scan completed:", result.length);
     });
-  logMemoria("before readBatchRecords");
-  var modifiedCount = await readBatchRecords(archivePath, profile,
+  /// Non serve più consolidaDB(archivePath);
+  logMemoria("after scan");
+
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+    async (record) => {
+      return await setAll(record, profile);
+    }
+  );
+  logMemoria("Fine");
+}
+if (false) {
+  logMemoria("before scan");
+  await scanSource(profile)
+    .then(result => {
+      console.log("Scan completed:", result.length);
+    });
+  logMemoria("after scan");
+  var modifiedCount = await readBatchRecords(archivePath, "raw_files", profile,
+    (record) => {
+      return hashFile(record, null, profile);
+    }
+  );
+  logMemoria("after hash");
+  consolidaDB(archivePath);
+  logMemoria("after purge");
+
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
+    async (record) => {
+      return await setAll(record, profile);
+    }
+  );
+
+  var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     async (record) => {
       const res = await setAll(record, profile);
       return res[0] || res[1] || res[2] || res[3] || res[4];

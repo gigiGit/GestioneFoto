@@ -2,17 +2,35 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 import Database from "better-sqlite3";
-const IMAGE_EXTENSIONS = new Set([
-  ".jpg", ".jpeg", ".tif", ".tiff", ".nef", ".png", ".webp", ".heic", ".heif", ".avif"
-]);
-const INSERT_SQL = `INSERT INTO raw_files (
-  hash,dhash, fullname, name, ext, dt_valida, size, createdAt,
-  exifCreateDate, exifDateTimeOriginal, exifGPSDateStamp, exifModifyDate, thumbnail, albums,valido,destPath
-) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-function initDB(db) {
+const COLONNE = { raw_files: [], single_files: [] };
+
+export function logMemoria(etichetta = '') {
+  const mem = process.memoryUsage();
+  const toMB = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
+
+  console.log(`[MEMORIA ${etichetta}]`, {
+    //totaleProcesso_RSS: toMB(mem.rss),        // Memoria fisica totale (JS + C++ SQLite)
+    heapJS_Usato: toMB(mem.heapUsed),         // Oggetti e array JS (es. pendingUpdates)
+    heapJS_Allocato: toMB(mem.heapTotal),     // Spazio totale riservato da V8
+    //memoriaEsterna_C: toMB(mem.external)      // Buffer e strutture C++
+  });
+}
+
+export function initDB(archivePath) {
+  const db = new Database(path.resolve(archivePath));
   const SQL = `CREATE TABLE IF NOT EXISTS raw_files (
     hash TEXT,
-    dhash TEXT,
+    fullname TEXT,
+    name TEXT,
+    ext TEXT,
+    size INTEGER,
+    createdAt TEXT,
+    albums TEXT,
+    valido Integer,
+    primary key (fullname)
+  )`;
+  const VSQL = `CREATE TABLE IF NOT EXISTS single_files (
+    hash TEXT,
     fullname TEXT,
     name TEXT,
     ext TEXT,
@@ -29,91 +47,66 @@ function initDB(db) {
     destPath TEXT,
     primary key (fullname)
   )`;
-const VSQL=`create view if not exists v_raw_files as 
-SELECT *
-FROM (
-    SELECT *,
-           ROW_NUMBER() OVER (
-               PARTITION BY hash
-               ORDER BY rowid
-           ) AS rn
-    FROM raw_files
-)
-WHERE rn > 1`;
   try {
+    db.prepare("drop table if exists raw_files").run();
     db.prepare(SQL).run();
-    const columns = db.prepare("PRAGMA table_info(raw_files)").all();
-    if (!columns.some(column => column.name === "valido")) {
-      db.prepare("ALTER TABLE raw_files ADD COLUMN valido INTEGER").run();
-    }
-    if (!columns.some(column => column.name === "dhash")) {
-      db.prepare( "ALTER TABLE raw_files ADD COLUMN dhash TEXT").run();
-    }
     db.prepare(VSQL).run();
+    COLONNE.raw_files.push(...db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name));
+    COLONNE.single_files.push(...db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name));
   } catch (error) {
-    throw new Error(`Unable to initialize raw_files table: ${error.message}`, { cause: error });
+    throw new Error(`Unable to initialize DB: ${error.message}`, { cause: error });
   }
+  console.log("Columns raw files:", COLONNE.raw_files);
+  console.log("Columns single files:", COLONNE.single_files);
 }
 
-function run(db, sql, values = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, values, function (error) {
-      if (error) reject(error);
-      else resolve(this.changes);
-    });
-  });
-}
 
-async function upsertFiles(db, files) {
-  const columns = [
-    "hash", "dhash", "fullname", "name", "ext", "dt_valida", "size", "createdAt",
-    "exifCreateDate", "exifDateTimeOriginal", "exifGPSDateStamp", "exifModifyDate",
-    "thumbnail", "albums", "valido", "destPath"
-  ];
-  const assignments = columns.map(column => `${column} = COALESCE(?, ${column})`).join(", ");
+export function insertFiles(archivePath, files) {
+  const columns = COLONNE.raw_files;
   const placeholders = columns.map(() => "?").join(", ");
-  await run(db, "BEGIN IMMEDIATE");
+  const db = new Database(path.resolve(archivePath));
+  db.prepare("BEGIN TRANSACTION").run();
+  const stmt1 = db.prepare(`insert into raw_files (${columns.join(", ")}) VALUES (${placeholders})`);
+  const stmt2 = db.prepare(`update raw_files set ${columns.map(column => `${column}=?`).join(", ")} where fullname=?`);
+  let values;
   try {
     for (const file of files) {
-      const values = columns.map(column => column === "albums" && Array.isArray(file.albums)
+      /*const result = stmt2.run([...columns.map(column => column === "albums" && Array.isArray(file.albums)
         ? JSON.stringify(file.albums)
-        : file[column] ?? null);
-      const changes = await run(db, `UPDATE raw_files SET ${assignments} WHERE fullname = ?`, [...values, file.fullname]);
-      if (changes === 0) {
-        await run(db, `INSERT INTO raw_files (${columns.join(", ")}) VALUES (${placeholders})`, values);
+        : file[column] ?? null), file.fullname]);
+      if (result.changes === 0)
+      */ {
+        values = columns.map(column => column === "albums" && Array.isArray(file.albums)
+          ? JSON.stringify(file.albums)
+          : file[column] ?? null);
+        stmt1.run(values);
       }
     }
-    await run(db, "COMMIT");
+    db.prepare("COMMIT").run();
   } catch (error) {
-    await run(db, "ROLLBACK");
-    throw error;
-  }
-}
-
-function updateFiles(db, files) {
-  const assignments = columns.map(column => `${column} = COALESCE(?, ${column})`).join(", ");
-  try {
-    const stmt = db.prepare(`UPDATE raw_files SET ${assignments} WHERE fullname = ?`);
-    for (const file of files) {
-      const values = columns.map(column => column === "albums" && Array.isArray(file.albums)
-        ? JSON.stringify(file.albums)
-        : file[column] ?? null);
-      stmt.run([...values, file.fullname]);
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      if (
+        v !== null &&
+        typeof v !== "string" &&
+        typeof v !== "number" &&
+        typeof v !== "bigint" &&
+        !Buffer.isBuffer(v)
+      ) {
+        console.log(
+          `Colonna ${columns[i]} contiene valore non valido:`,
+          v,
+          `(${typeof v})`
+        );
+      }
     }
-  } catch (error) {
+    db.prepare("ROLLBACK").run();
     throw error;
   }
+
 }
 
-function writeArchiveFiles(databasePath, files) {
-  const db = new Database(databasePath);
-  try {
-    initDB(db);
-    upsertFiles(db, files);
-  } finally {
-    db.close();
-  }
-}
+
 
 function deserializeAlbums(value) {
   if (value === null || value === undefined || value === "") return [];
@@ -134,7 +127,8 @@ function mapArchivedRecord(record) {
   else return { ...record, albums: deserializeAlbums(record.albums) };
 }
 
-export function readBatchRecords(archivePath, options, callback) {
+
+export async function readBatchRecords(archivePath, TABELLA, options, callback) {
   const orderby = options?.orderby || null;
   const filters = options?.filters || null;
   const sellist = options?.sellist || '*';
@@ -144,73 +138,9 @@ export function readBatchRecords(archivePath, options, callback) {
   console.log("Filters:", filters);
   console.log("Sellist:", sellist);
   const db = new Database(path.resolve(archivePath));
+  const Assignement = COLONNE[TABELLA].map(column => `${column}=?`);
   let modifiedRowsCount = 0;
-  try {
-    const conditions = [];
-    const values = [];
-    const text = value => typeof value === "string" ? value.trim() : "";
-    if (filters) {
-      if (text(filters.name)) {
-        conditions.push("instr(lower(COALESCE(name, '')), lower(?)) > 0");
-        values.push(text(filters.name));
-      }
-      if (text(filters.ext)) {
-        const extension = text(filters.ext);
-        conditions.push("lower(ext) = lower(?)");
-        values.push(extension.startsWith(".") ? extension : `.${extension}`);
-      }
-    }
-    const where = ` WHERE rowid> ? and rowid < ? and ${conditions.length ? conditions.join(" AND ") : " 1=1"}`;
-    const SQL = `SELECT ${sellist} FROM raw_files ${where} `;
-
-
-    let offset = 0;
-
-    console.log("Executing SQL:", SQL, "with values:", [offset, offset + batchSize, ...values], "batchSize:", batchSize);
-
-    const stmt = db.prepare(SQL);
-    while (true) {
-      const rows = stmt.all([offset, offset + batchSize, ...values]);
-      if (rows.length === 0) break;
-      const modifiedRows = [];
-      //console.log(rows);
-      for (const row of rows) {
-        const record = mapArchivedRecord(row);
-        const result = callback(record, modifiedRows.length);
-        if (result) {
-          modifiedRows.push(record);
-        }
-      }
-      if (modifiedRows.length > 0) {
-        updateFiles(db, modifiedRows);
-        modifiedRowsCount += modifiedRows.length;
-      }
-      offset += batchSize;
-    }
-  } finally {
-    db.close();
-  }
-  return modifiedRowsCount;
-}
-
-const columns = [
-  "hash", "fullname", "name", "ext", "dt_valida", "size", "createdAt",
-  "exifCreateDate", "exifDateTimeOriginal", "exifGPSDateStamp", "exifModifyDate",
-  "thumbnail", "albums", "valido", "destPath"
-];
-export async function readBatchRecords2(archivePath, options, callback) {
-  const orderby = options?.orderby || null;
-  const filters = options?.filters || null;
-  const sellist = options?.sellist || '*';
-  const batchSize = options?.batchSize || 100;
-
-  console.log("Order by:", orderby);
-  console.log("Filters:", filters);
-  console.log("Sellist:", sellist);
-  const db = new Database(path.resolve(archivePath));
-  const Assignement = columns.map(column => `${column}=?`);
-  let modifiedRowsCount = 0;
-  let uvalues=null;
+  let uvalues = null;
   try {
     const conditions = [];
     const values = [];
@@ -227,12 +157,9 @@ export async function readBatchRecords2(archivePath, options, callback) {
       }
     }
     const where = ` WHERE ${conditions.length ? conditions.join(" AND ") : " 1=1"}`;
-    const SQL = `SELECT ${sellist} FROM raw_files ${where} `;
-
-
+    const SQL = `SELECT ${sellist} FROM ${TABELLA} ${where} `;
     let offset = 0;
-    
-    const UPDSQL=`UPDATE raw_files SET ${Assignement.join(", ")} WHERE fullname = ?`;
+    const UPDSQL = `UPDATE ${TABELLA} SET ${Assignement.join(", ")} WHERE fullname = ?`;
     console.log("Executing SQL:", SQL, "with values:", values, "batchSize:", batchSize);
     console.log("   update SQL:", UPDSQL);
 
@@ -241,7 +168,7 @@ export async function readBatchRecords2(archivePath, options, callback) {
     let modifiedRows = [];
     const rows = stmt.all(values)
     for (const row of rows) {
-    //for (const row of stmt.iterate(values)) {
+      //for (const row of stmt.iterate(values)) {
       const record = mapArchivedRecord(row);
       const result = await callback(record, modifiedRows.length);
       if (result) {
@@ -249,7 +176,7 @@ export async function readBatchRecords2(archivePath, options, callback) {
       }
       if (modifiedRows.length > batchSize) {
         for (const file of modifiedRows) {
-          const uvalues = columns.map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
+          const uvalues = COLONNE[TABELLA].map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
           stmtUpd.run([...uvalues, file.fullname]);
         }
         modifiedRowsCount += modifiedRows.length;
@@ -258,18 +185,65 @@ export async function readBatchRecords2(archivePath, options, callback) {
     }
     if (modifiedRows.length > batchSize) {
       for (const file of modifiedRows) {
-        const uvalues = columns.map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
+        const uvalues = COLONNE[TABELLA].map(column => column === "albums" ? JSON.stringify(file.albums) : file[column]);
         stmtUpd.run([...uvalues, file.fullname]);
       }
       modifiedRowsCount += modifiedRows.length;
       modifiedRows = [];
     }
-  }catch(error){
+  } catch (error) {
     console.log(error);
     throw error;
   } finally {
     db.close();
   }
   return modifiedRowsCount;
+}
+
+export function consolidaDB(archivePath) {
+  const db = new Database(archivePath);
+  COLONNE.raw_files.push(...db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name));
+  COLONNE.single_files.push(...db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name));
+
+  try {
+    const stmt = `
+    INSERT INTO single_files (${COLONNE["raw_files"].join(", ")})
+    SELECT ${COLONNE["raw_files"].join(", ")}
+    FROM raw_files
+    WHERE hash NOT IN (
+        SELECT hash
+        FROM single_files
+    )
+`;
+    //console.log("Executing consolidation SQL:", stmt);
+    db.prepare(stmt).run();
+    //db.prepare("delete from raw_files where hash in (select hash from single_files)").run();
+  } finally {
+    db.close();
+  }
+}
+
+
+export function readSomeRecords(archivePath, TABELLA, options = {}) {
+  const orderby = options?.orderby || null;
+  const filters = options?.filters || null;
+  const sellist = options?.sellist || '*';
+  const batchSize = options?.batchSize || 100;
+  //console.log("Lettura record dall'archivio", archivePath);
+  const db = new Database(path.resolve(archivePath));
+  const WHERE = filters ? "where " + filters : "";
+  const ORDERBY = orderby ? "order by " + orderby : "";
+  const SQL = `SELECT ${sellist} FROM ${TABELLA} ${WHERE} ${ORDERBY}`
+  const stmt = db.prepare(SQL);
+  let records = [];
+  try {
+    records = stmt.all();
+    console.log("Record letti:", records.length, `SQL: "${SQL}"`);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    db.close();
+  }
+  return records.map(mapArchivedRecord);
 }
 

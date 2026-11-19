@@ -1,8 +1,10 @@
 import path from "node:path";
 import fs from "node:fs";
 
-import { writeArchiveFiles, readSomeRecords,readBatchRecords } from "./scan-archive.cjs";
-import { calcolaDHashHex,casiParticolari , changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+import { writeArchiveFiles, readBatchRecords } from "./scan-archive.cjs";
+import {hashFileFromPath, calcolaDHashHex,casiParticolari , changeFileDate, analisiDest, linkAlbum, analisiExif, analisiThumbnail, copia, analisiDate, analisiAlbum, hashFile } from "./runner.js";
+
+import { insertFiles,readSomeRecords,consolidaDB } from "./scan-archive.js";
 export const SCAN_FILE_NAME = "scan.json";
 
 /**
@@ -65,7 +67,7 @@ export async function analisiFromMemory(funcName, parametri, customFunc) {
     default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
       break;
   }
-  if (!option.count) option.count = 500;
+  if (!option.batchSize) option.batchSize = 500;
 
   console.log(`Starting analysis for function: ${funcName} Files da analizzare ${files.length}`);
   console.log("archivePath:", archivePath);
@@ -75,14 +77,14 @@ export async function analisiFromMemory(funcName, parametri, customFunc) {
     const exitCode = await cb(file, pendingFiles, option);
     if (exitCode === false) errorCount++;
     count++;
-    if (option.verbose && count % option.count === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
-    if (pendingFiles.length >= option.count) {
-      await writeArchiveFiles(archivePath, pendingFiles);
+    if (option.verbose && count % option.batchSize === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
+    if (pendingFiles.length >= option.batchSize) {
+      insertFiles(archivePath, pendingFiles);
       pendingFiles = [];
     }
   }
   if (pendingFiles.length > 0) {
-    await writeArchiveFiles(archivePath, pendingFiles);
+    insertFiles(archivePath, pendingFiles);
   }
   console.log(`Analysis completed for function: ${funcName}`);
   console.log(`Total files processed: ${count}`);
@@ -123,7 +125,7 @@ export async function analisiFromDb(funcName, parametri, customFunc) {
     default: console.log(`Unknown function name: ${funcName}`); cb = customFunc;
       break;
   }
-  if (!option.count) option.count = 500;
+  if (!option.batchSize) option.batchSize = 500;
 
   console.log(`Starting analysis for function: ${funcName} Files da analizzare ${files.length}`);
   const dt2 = new Date();
@@ -136,8 +138,8 @@ export async function analisiFromDb(funcName, parametri, customFunc) {
       const exitCode = await cb(file, pendingFiles, option);
       if (exitCode === false) errorCount++;
       count++;
-      if (option.verbose && count % option.count === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
-      if (pendingFiles.length >= option.count) {
+      if (option.verbose && count % option.batchSize === 0) console.log(`Processed ${count} files for ${funcName} - pending writes: ${pendingFiles.length}`);
+      if (pendingFiles.length >= option.batchSize) {
         await writeArchiveFiles(archivePath, pendingFiles);
         pendingFiles = [];
       }
@@ -174,7 +176,7 @@ export async function scanSource(parametri) {
   const files = [];
   try {
     fs.accessSync(archivePath);
-    files.push(...await readSomeRecords(archivePath,{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
+    files.push(...await readSomeRecords(archivePath,"raw_files",{sellist: "fullname,name,ext,createdAt,albums,size,hash,valido"}));
     for (const file of files) {
       pathFile[file.fullname] = file;
     }
@@ -227,14 +229,14 @@ export async function scanSource(parametri) {
           size: stats.size,
           albums: albums,
           createdAt: stats.ctime.toISOString(),
-          hash: null,
-          valido: true
+          hash: await hashFileFromPath(filePath),
+          valido: 1
         };
 
         pathFile[file.fullname] = file;
         pendingFiles.push(file);
-        if (pendingFiles.length >= 500) {
-          await writeArchiveFiles(archivePath, pendingFiles);
+        if (pendingFiles.length >= parametri.batchSize) {
+          await insertFiles(archivePath, pendingFiles);
           console.log(`${files.length} Wrote ${pendingFiles.length} new files to archive: ${normalizedPath}`);
           pendingFiles = [];
         }
@@ -251,7 +253,9 @@ export async function scanSource(parametri) {
 
   for (const scanDir of listDir)
     await visitDirectory(scanDir);
-  if (pendingFiles.length > 0) await writeArchiveFiles(archivePath, pendingFiles);
+  if (pendingFiles.length > 0) await insertFiles(archivePath, pendingFiles);
   console.log("Scan Completato. Risultati:", Object.keys(pathFile).length);
+  consolidaDB(archivePath);
+  console.log("Database stabilization completed.");
   return Object.values(pathFile);
 }

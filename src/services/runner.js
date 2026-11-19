@@ -6,13 +6,14 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 export async function setAll(record,profile) {
   const tasks = [
-    hashFile(record, null, profile),
+    //hashFile(record, null, profile),
     casiParticolari(record, null, profile),
     analisiExif(record, null, profile),
     analisiThumbnail(record, null, profile),
     analisiDate(record, null, profile),
   ];
-  return await  Promise.all(tasks);
+  const res = await  Promise.all(tasks);
+  return res[0] || res[1] || res[2] || res[3];
 }
 
 export async function casiParticolari(file, pendingFiles, option) {
@@ -120,6 +121,15 @@ export async function analisiDest(file, pendingFiles=[], { force = false, destDi
             return false;
         }
     }*/
+}
+export function hashFileFromPath(filePath) {
+    return new Promise((resolve, reject) => {
+        const hash = createHash("sha256");
+        const stream = createReadStream(filePath);
+        stream.on("error", reject);
+        stream.on("data", chunk => hash.update(chunk));
+        stream.on("end", () => resolve(hash.digest("hex")));
+    });
 }
 export async function hashFile(file, pendingFiles=[], { force = false }) {
     if (!force && file.hash) return false;
