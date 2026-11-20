@@ -54,7 +54,7 @@ const V_COPY=`create view if not exists v_copy select f.* from single_files f
 join raw_files r on r.hash=f.hash
 where f.destPath is not null`;
   try {
-    db.prepare("drop table if exists raw_files").run();
+    //db.prepare("drop table if exists raw_files").run();
     db.prepare(SQL).run();
     db.prepare(VSQL).run();
     COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
