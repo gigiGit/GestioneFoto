@@ -18,7 +18,7 @@ export function logMemoria(etichetta = '') {
 
 export function initDB(archivePath) {
   const db = new Database(path.resolve(archivePath));
-  const SQL = `CREATE TABLE IF NOT EXISTS raw_files (
+  const RAW_FILES = `CREATE TABLE IF NOT EXISTS raw_files (
     hash TEXT,
     disco TEXT,
     fullname TEXT,
@@ -30,7 +30,7 @@ export function initDB(archivePath) {
     valido Integer,
     primary key (fullname)
   )`;
-  const VSQL = `CREATE TABLE IF NOT EXISTS single_files (
+  const SINGLE_FILES = `CREATE TABLE IF NOT EXISTS single_files (
     hash TEXT,
     disco TEXT,
     fullname TEXT,
@@ -49,10 +49,13 @@ export function initDB(archivePath) {
     destPath TEXT,
     primary key (fullname)
   )`;
+const V_COPY=`create view if not exists v_copy select f.* from single_files f
+join raw_files r on r.hash=f.hash
+where f.destPath is not null`;
   try {
     db.prepare("drop table if exists raw_files").run();
-    db.prepare(SQL).run();
-    db.prepare(VSQL).run();
+    db.prepare(RAW_FILES).run();
+    db.prepare(SINGLE_FILES).run();
     COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
     COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
     if(COLONNE.raw_files.indexOf("disco") === -1) {
@@ -70,6 +73,8 @@ export function initDB(archivePath) {
                 select ${COLONNE.raw_files.join(", ")} from raw_files
                 union 
                 select ${COLONNE.raw_files.join(", ")} from single_files;`).run();
+    db.prepare("drop view if exists v_copy").run();
+    db.prepare(V_COPY).run();
   } catch (error) {
     throw new Error(`Unable to initialize DB: ${error.message}`, { cause: error });
   }
