@@ -4,7 +4,7 @@ const router = express.Router();
 import fs from 'fs';
 import path from 'path';
 import { analisiFromMemory, scanSource } from '../services/scanner.js';
-import { readSomeRecords, writeArchiveFiles, selectValidDuplicate, updateArchiveRecord } from '../services/scan-archive.js';
+import { readSomeRecords,  updateArchiveRecord } from '../services/scan-archive.js';
 const profili = {};
 // API di verifica server
 router.get('/health', (req, res) => {
@@ -296,6 +296,35 @@ router.post("/jobs/runner", async (req, res) => {
         .then(result => res.json({ success: true, count: result.count, errorCount: result.errorCount }))
         .catch(error => res.status(500).json({ error: error.message }))
         .finally(() => { Runner = false; });
+});
+
+import os from 'os';
+
+router.get('/folders', async (req, res) => {
+    const targetPath =req.query.path ? path.resolve(req.query.path) :    os.homedir();
+    console.log("Navigazione in", targetPath);
+  try {
+    // Parte dalla home dell'utente se non è specificato un percorso
+    const entries =  fs.readdirSync(targetPath, { withFileTypes: true });
+
+    const folders = entries
+      .filter(entry => entry.isDirectory() && !entry.name.startsWith('.')) // Solo cartelle non nascoste
+      .map(entry => ({
+        name: entry.name,
+        fullPath: path.join(targetPath, entry.name)
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    console.log("Lista:", folders);
+    res.json({
+      currentPath: targetPath,
+      folderName: path.basename(targetPath) || targetPath,
+      parentPath: path.dirname(targetPath),
+      folders
+    });
+  } catch (err) {
+     console.error('Errore lettura cartella:', err);
+    res.status(500).json({ error: `Errore: ${err.code || err.message}` });
+  }
 });
 
 export default router;

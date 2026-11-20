@@ -34,7 +34,7 @@ export async function casiParticolari(file,  option) {
     }
     return mod;
 }
-export async function calcolaDHashHex(file, { force = false, destDir, backupPath, formato, verbose }) {
+export async function calcolaDHashHex(file, {  destDir, backupPath, formato, verbose }) {
     const filePath = path.join(file.disco + ":", file.fullname);
     try {
         const { data } = await sharp(filePath)
@@ -60,8 +60,8 @@ export async function calcolaDHashHex(file, { force = false, destDir, backupPath
         return false;
     }
 }
-export async function changeFileDate(file, { force = false, destDir, backupPath, formato, verbose }) {
-    if (!(file.valido && file.dt_valida)) return false;
+export async function changeFileDate(file, {  destDir, backupPath, formato, verbose }) {
+    if (!file.dt_valida) return false;
     const data = new Date(file.dt_valida)
     const destPath = path.join(destDir, backupPath, file.destPath, file.name);
     if (!fs.existsSync(destPath)) return false;
@@ -69,7 +69,6 @@ export async function changeFileDate(file, { force = false, destDir, backupPath,
         if (verbose > 1) console.log(`Changing file date for ${destPath}:`, data);
         fs.utimesSync(destPath, data, data);
         file.createdAt = file.dt_valida;
-        //pendingFiles.push(file);
         return true;
     } catch (error) {
         console.error(`Error changing file date for ${destPath}:`, error);
@@ -77,25 +76,27 @@ export async function changeFileDate(file, { force = false, destDir, backupPath,
     }
 }
 
-export async function copia(file, { force = false, destDir, backupPath, formato, verbose }) {
-    if (!file.valido && !file.dt_valida) return false;
+export async function copia(file, {  destDir, backupPath, formato, verbose }) {
+    if (!file.dt_valida) return false;
     const destPath = path.join(destDir, backupPath, file.destPath, file.name);
 
     if (fs.existsSync(destPath)) {
+        console.error(`Copia ${file.fullname} to ${destPath} fallita:`, "File esistente");
+        file.stato=2;
         return false;
     }
     try {
         if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.copyFileSync(path.join(file.disco + ":", file.fullname), destPath);
-        return true;
+        return changeFileDate(file, { destDir, backupPath, formato, verbose });
     } catch (error) {
         console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
         return false;
     }
 }
 
-export async function analisiDest(file, { force = false, destDir, backupPath, formato, verbose }) {
+export async function analisiDest(file, {  destDir, backupPath, formato, verbose }) {
     if (file.destPath) return false;
     if (!file.dt_valida) return false;
     const data = new Date(file.dt_valida)
@@ -105,23 +106,8 @@ export async function analisiDest(file, { force = false, destDir, backupPath, fo
     const dataFormattata = formato === "YYYYMMDD" ? `${anno}${path.sep}${mese}${path.sep}${giorno}` : `${anno}${path.sep}${mese}`;
     const destinationDir = dataFormattata;
     const destPath = path.join(destDir, backupPath, destinationDir, file.name);
-    //if (file.destPath) return false;
     file.destPath = destinationDir;
-    //pendingFiles.push(file);
     return true;
-    // Implement the copy functionality here
-    /*    try {
-            if (verbose > 1) console.log(`Copying file ${file.fullname} to ${destPath}`);
-            fs.mkdirSync(path.dirname(destPath), { recursive: true });
-            fs.copyFileSync(file.fullname, destPath);
-            file.destPath = destinationDir;
-            pendingFiles.push(file);
-            return true;
-        } catch (error) {
-            console.error(`Error copying file ${file.fullname} to ${destPath}:`, error);
-            return false;
-        }
-    }*/
 }
 export function hashFileFromPath(filePath) {
     return new Promise((resolve, reject) => {
@@ -132,8 +118,8 @@ export function hashFileFromPath(filePath) {
         stream.on("end", () => resolve(hash.digest("hex")));
     });
 }
-export async function hashFile(file, { force = false }) {
-    if (!force && file.hash) return false;
+export async function hashFile(file, options) {
+    if (file.hash) return false;
     try {
         const Hash = await new Promise((resolve, reject) => {
             const hash = createHash("sha256");
@@ -175,24 +161,22 @@ export async function linkAlbum(file, { verbose = 0, destDir, backupPath, albumP
 }
 
 
-export async function analisiExif(file, parametri) {
+export async function analisiExif(file, {verbose = 0}) {
     if ((file.exifCreateDate || file.exifDateTimeOriginal || file.exifGPSDateStamp || file.exifModifyDate)) return false;
     const unsupportedExtensions = new Set([".mpg", ".pdf", ".m4v", ".wmv", ".mp4", ".mov", ".avi", ".mkv", ".gif", ".3gp", ".bmp"]);
     const ext = file.ext.toLowerCase();
     if (unsupportedExtensions.has(ext)) return false;
 
-    const { force = false } = parametri;
-    if (!force) {
-        return false;
-    }
+    
     try {
-        const exifData = await exifr.parse(path.join(file.disco + ":", file.fullname)) ?? null;
+        const filePath = path.join(file.disco + ":", file.fullname);
+
+        const exifData = await exifr.parse(filePath) ?? null;
         file.exifCreateDate = exifData?.CreateDate ? new Date(exifData.CreateDate).toISOString() : null;
         file.exifDateTimeOriginal = exifData?.DateTimeOriginal ? new Date(exifData.DateTimeOriginal).toISOString() : null;
         file.exifGPSDateStamp = exifData?.GPSDateStamp ? new Date(exifData.GPSDateStamp).toISOString() : file.exifCreateDate;
         file.exifModifyDate = exifData?.ModifyDate ? new Date(exifData.ModifyDate).toISOString() : null;
-        if (parametri.verbose > 1) console.log(`EXIF data for ${file.fullname}:`, exifData);
-        //pendingFiles.push(file);
+        if (verbose > 1) console.log(`EXIF data for ${file.fullname}:`, exifData);
         return true;
     } catch (error) {
         console.error(`Error reading EXIF data for ${file.fullname}:`, error);
@@ -200,8 +184,7 @@ export async function analisiExif(file, parametri) {
         file.exifDateTimeOriginal = null;
         file.exifGPSDateStamp = null;
         file.exifModifyDate = null;
-        //pendingFiles.push(file);
-        return false;
+        return true;
     }
 }
 
@@ -250,8 +233,8 @@ export function toLocalISOString(date) {
     }
 }
 
-export async function analisiAlbum(file, { force = false }) {
-    if (!(force || file.albums === null || file.albums === undefined)) return false;
+export async function analisiAlbum(file, {verbose=0 }) {
+    if (!(file.albums === null || file.albums === undefined)) return false;
 
     try {
         const normalizedPath = path.normalize(file.disco+":"+file.fullname);
@@ -265,7 +248,7 @@ export async function analisiAlbum(file, { force = false }) {
     }
 }
 
-export async function analisiDate(file, { force = false, verbose = 0 }) {
+export async function analisiDate(file, {  verbose = 0 }) {
     if (file.dt_valida) return false;
     if (verbose > 1) console.log(`Starting analisiDate for ${file.fullname}`);
     try {

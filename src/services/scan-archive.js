@@ -46,6 +46,7 @@ export function initDB(archivePath) {
     thumbnail TEXT,
     albums TEXT,
     valido Integer,
+    stato  integer,
     destPath TEXT,
     primary key (fullname)
   )`;
@@ -54,8 +55,8 @@ join raw_files r on r.hash=f.hash
 where f.destPath is not null`;
   try {
     db.prepare("drop table if exists raw_files").run();
-    db.prepare(RAW_FILES).run();
-    db.prepare(SINGLE_FILES).run();
+    db.prepare(SQL).run();
+    db.prepare(VSQL).run();
     COLONNE.raw_files = db.prepare("PRAGMA table_info(raw_files)").all().map(col => col.name);
     COLONNE.single_files = db.prepare("PRAGMA table_info(single_files)").all().map(col => col.name);
     if(COLONNE.raw_files.indexOf("disco") === -1) {
@@ -67,6 +68,11 @@ where f.destPath is not null`;
       COLONNE.single_files.push("disco");
       db.prepare("alter table single_files add column disco TEXT").run(); 
       console.log("Updated single_files with disco column");
+    }
+    if(COLONNE.single_files.indexOf("stato") === -1) {
+      COLONNE.single_files.push("stato");
+      db.prepare("alter table single_files add column stato INTEGER").run(); 
+      console.log("Aggiornato single_files con colonna STATO");
     }
     db.prepare("drop view if exists v_files").run();
     db.prepare(`create view if not exists v_files as 
@@ -194,7 +200,7 @@ export async function readBatchRecords(archivePath, TABELLA, options, callback) 
     for (const row of rows) {
       //for (const row of stmt.iterate(values)) {
       const record = mapArchivedRecord(row);
-      const result = await callback(record, modifiedRows.length);
+      const result = await callback(record,options);
       if (result) {
         modifiedRows.push(record);
       }
@@ -281,4 +287,29 @@ export function query(archivePath, SQL, values) {
     db.close();
   }
   return result;
+}
+export function updateArchiveRecord(archivePath, file) {
+  // da implementare
+  if(!file.fullname) return false;
+  const arr = Object.keys(file).map(key => {
+    if (key !== "fullname") 
+      return key;
+  });
+
+  //const db = new Database(path.resolve(archivePath));
+
+  try {
+    const columns = COLONNE["single_files"];
+    const setClause = arr.map(col => `${col} = ?`).join(", ");
+    const values = arr.map(col => file[col]);
+    const SQL = `UPDATE single_files SET ${setClause} WHERE fullname = ?`;
+    values.push(file.fullname);
+    console.log("Columns to update:", arr);
+    console.log("SQL:", SQL);
+    //db.prepare(SQL).run(values);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    //db.close();
+  }
 }
