@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const profilo_giuliano = {
   name: "giuliano",
   archive: "archive-giuliano.db",
-  sourceFolders: [ "E:\\MediaBackup","F:\\TarPhoto\\Giuliano","H:\\DeTarPhoto","H:\\Immagini","H:\\IsoPhoto","K:\\","N:\\Photo\\Giuliano"],
+  sourceFolders: [ "E:\\MediaBackup","F:\\TarPhoto\\Giuliano","H:\\DeTarPhoto","H:\\Immagini","K:\\","N:\\Photo\\Giuliano"],
   destDir: "H:\\ArchivioFoto",
   scanDir: "scan",
   backupPath: "giuliano\\backup",
