@@ -53,6 +53,8 @@ if (true) {
   logMemoria("after analisiDest");
   const rows = query(archivePath, "select count(*) from single_files where destPath is null", []);
   console.log("Rows with null destPath:", rows);
+  const daCopiare = query(archivePath, "select count(*) from V_copy ", []);
+  console.log("File da copiare:", daCopiare);
   var modifiedCount = await readBatchRecords(archivePath, "single_files", profile,
     (record) => {
       return copia(record, profile);
