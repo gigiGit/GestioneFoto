@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 import fs from 'fs';
 import path from 'path';
-import { analisiFromMemory, scanSource } from '../services/scanner.js';
+import {analisiFromMemory, scanSource,readBatchRecords } from '../services/scanner.js';
 import { readSomeRecords,  updateArchiveRecord } from '../services/scan-archive.js';
 const profili = {};
 // API di verifica server
@@ -292,7 +292,7 @@ router.post("/jobs/runner", async (req, res) => {
         return;
     }
     Runner = true;
-    analisiFromMemory(parametri.runner, parametri.profile)
+    readBatchRecords(parametri.runner,"single_files", parametri.profile)
         .then(result => res.json({ success: true, count: result.count, errorCount: result.errorCount }))
         .catch(error => res.status(500).json({ error: error.message }))
         .finally(() => { Runner = false; });
