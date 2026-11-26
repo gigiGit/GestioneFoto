@@ -217,4 +217,4 @@ def elabora_file(nome_file, timestamp_fallback):
     print("Data migliore per", nome_file, ":", data_migliore)
     print("Hash file per", nome_file, ":", file_hash)
     return
-elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\26\\dsc_8578.mov", datetime.now())
+elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\26\\a.0003.mp4", datetime.now())

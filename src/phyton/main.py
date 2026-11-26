@@ -4,6 +4,7 @@ import zlib
 import zipfile
 import tarfile
 import hashlib
+import tempfile
 from io import BytesIO
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,7 @@ import json
 import struct
 import warnings
 from PIL import Image, ExifTags
+import subprocess
 
 Image.MAX_IMAGE_PIXELS = 200_000_000
 FILE_CONFIG = "config.ini"
@@ -205,6 +207,26 @@ from datetime import datetime
 from io import BytesIO
 from PIL import Image, ExifTags
 
+import re
+from datetime import datetime
+
+
+import re
+from pathlib import Path
+from datetime import datetime
+
+def estrai_data_da_timestamp_nome(nome_file):
+    nome = Path(nome_file).stem
+
+    # 13 cifre oppure 23 cifre con timestamp iniziale
+    if re.fullmatch(r"\d{13}|\d{23}", nome):
+        try:
+            timestamp = int(nome[:13]) / 1000
+            return datetime.fromtimestamp(timestamp)
+        except (ValueError, OSError, OverflowError):
+            pass
+
+    return None
 
 def estrai_data_exif(dati_bytes):
     try:
@@ -278,6 +300,10 @@ def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes):
     dt_nome = estrai_data_da_nome(Path(nome_file).name)
     if dt_nome:
         return dt_nome
+    # 3.1 Data ricavata dal timestamp nel nome del file
+    dt_timestamp_nome = estrai_data_da_timestamp_nome(Path(nome_file).name)
+    if dt_timestamp_nome:
+        return dt_timestamp_nome
     # 4. Data dell'archivio o del file system
     #if isinstance(timestamp_fallback, datetime):
     #    return timestamp_fallback    
