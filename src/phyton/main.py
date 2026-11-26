@@ -1,5 +1,6 @@
 import os
 import re
+import zlib
 import zipfile
 import tarfile
 import hashlib
@@ -18,6 +19,76 @@ FILE_DA_IGNORARE = {'thumbs.db', '.ds_store', 'desktop.ini', 'indice_hash.txt'}
 ESTENSIONI_DA_IGNORARE = {'.ctg', '.tmp', '.ini', '.db', '.json'}
 #ESTENSIONI_IMMAGINI = {'.jpg', '.jpeg', '.tiff', '.webp', '.dng', '.nef', '.cr2', '.arw'}
 ESTENSIONI_TAR = ('.tar', '.tar.gz', '.tgz')
+
+FFPROBE = r"C:\tools\ffmpeg\bin\ffprobe.exe"
+
+def estrai_data_video(nome_file):
+    percorso_temp = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=Path(nome_file).suffix,
+            delete=False
+        ) as temp:
+            percorso_temp = temp.name
+
+            with open(nome_file, "rb") as f:
+                while chunk := f.read(1024 * 1024):
+                    temp.write(chunk)
+
+        risultato = subprocess.run(
+            [
+                FFPROBE,
+                "-v", "quiet",
+                "-show_format",
+                "-show_streams",
+                "-of", "json",
+                percorso_temp
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        metadati = json.loads(risultato.stdout)
+
+        # 1. Priorità alla data della traccia video
+        for stream in metadati.get("streams", []):
+            if stream.get("codec_type") == "video":
+                tags = stream.get("tags", {})
+                valore = tags.get("creation_time")
+
+                if valore:
+                    dt = datetime.fromisoformat(
+                        valore.replace("Z", "+00:00")
+                    )
+
+                    print(f"[DATA VIDEO] {dt}")
+                    return dt.replace(tzinfo=None)
+
+        # 2. In alternativa, data del contenitore MOV/MP4
+        tags = metadati.get("format", {}).get("tags", {})
+        valore = tags.get("creation_time")
+
+        if valore:
+            dt = datetime.fromisoformat(
+                valore.replace("Z", "+00:00")
+            )
+
+            print(f"[DATA CONTENITORE] {dt}")
+            return dt.replace(tzinfo=None)
+
+    except Exception as e:
+        print(
+            f"[ATTENZIONE] Impossibile estrarre data video "
+            f"{nome_file}: {e}"
+        )
+
+    finally:
+        if percorso_temp and os.path.exists(percorso_temp):
+            os.unlink(percorso_temp)
+
+    return None
 
 def prepara_casi_particolari(casi):
     risultato = {}
@@ -192,22 +263,27 @@ def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes):
         return CASI_PARTICOLARI[nome]
     
     ext = Path(nome_file).suffix.lower()
+    # 1. Se è un video, proviamo a estrarre la data dai metadati
+    if ext in [".mov", ".mp4", ".avi", ".mkv"] :
+        dt_video = estrai_data_video(nome_file)
+        if dt_video:
+            return dt_video        
 
-    # 1. Priorità alla data EXIF
+    # 2. Se è una immagine
     if ext in ESTENSIONI_IMMAGINI and primi_bytes:
         dt_exif = estrai_data_exif(primi_bytes)
         if dt_exif:
             return dt_exif
-    # 2. Data ricavata dal nome del file
+    # 3. Data ricavata dal nome del file
     dt_nome = estrai_data_da_nome(Path(nome_file).name)
     if dt_nome:
         return dt_nome
-    # 3. Data dell'archivio o del file system
+    # 4. Data dell'archivio o del file system
     #if isinstance(timestamp_fallback, datetime):
     #    return timestamp_fallback    
     #return datetime.fromtimestamp(timestamp_fallback)
     
-    # 4. Se nessuna delle precedenti ha funzionato, usa la data corrente come fallback
+    # 5. Se nessuna delle precedenti ha funzionato, usa la data corrente come fallback
     # in questo modo, si potranno gestire come casi particolari i file senza data valida
     return datetime.now()
 
@@ -220,6 +296,9 @@ def calcola_hash_e_intestazione(stream):
         if len(intestazione) < 131072:
             intestazione.extend(chunk)
     return hasher.hexdigest(), bytes(intestazione)
+
+
+
 
 def scrivi_file_unico(stream, nome_file, dt, cartella_dest):
     # Crea il percorso usando il formato definito nel JSON
@@ -241,18 +320,23 @@ def scrivi_file_unico(stream, nome_file, dt, cartella_dest):
         contatore += 1
 
     # Copia fisicamente il file
-    with open(percorso_finale, "wb") as f_out:
-        while chunk := stream.read(65536):
-            f_out.write(chunk)
+    try:
+        with open(percorso_finale, "wb") as f_out:
+            while chunk := stream.read(65536):
+                f_out.write(chunk)
 
-    # Imposta la data di accesso e modifica sulla data di scatto
-    timestamp_scatto = dt.timestamp()
+        timestamp_scatto = dt.timestamp()
 
-    os.utime(
-        percorso_finale,
-        (timestamp_scatto, timestamp_scatto)
-    )
+        os.utime(
+            percorso_finale,
+            (timestamp_scatto, timestamp_scatto)
+        )
 
+    except Exception:
+        if percorso_finale.exists():
+            percorso_finale.unlink()
+        raise
+   
 def da_ignorare(nome_file):
     p = Path(nome_file)
     return p.name.lower() in FILE_DA_IGNORARE or p.suffix.lower() in ESTENSIONI_DA_IGNORARE
@@ -277,30 +361,56 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
         try:
             with zipfile.ZipFile(percorso_completo, 'r') as z:
                 for info in z.infolist():
+
                     if info.is_dir() or da_ignorare(info.filename):
                         continue
-                    with z.open(info) as f_in:
-                        file_hash, intestazione = calcola_hash_e_intestazione(f_in)
-                    
-                    if file_hash in hash_visti:
-                        stats['duplicati'] += 1
+
+                    try:
+                        # Prima lettura: calcolo hash e intestazione
+                        with z.open(info) as f_in:
+                            file_hash, intestazione = calcola_hash_e_intestazione(f_in)
+
+                        if file_hash in hash_visti:
+                            stats['duplicati'] += 1
+                            continue
+
+                        # Recupera la data
+                        dt_archivio = get_real_timestamp(info)
+
+                        if dt_archivio is None:
+                            dt_archivio = datetime(*info.date_time)
+
+                        dt_finale = ottieni_data_migliore(
+                            info.filename,
+                            dt_archivio,
+                            intestazione
+                        )
+
+                        # Seconda lettura: copia del file
+                        with z.open(info) as f_in:
+                            scrivi_file_unico(
+                                f_in,
+                                info.filename,
+                                dt_finale,
+                                cartella_dest
+                            )
+
+                        hash_visti.add(file_hash)
+                        salva_nuovo_hash(percorso_indice, file_hash)
+                        stats['salvati'] += 1
+
+                    except (zlib.error, zipfile.BadZipFile, EOFError, OSError) as e:
+                        print(
+                            f"\n[FILE CORROTTO] {info.filename}"
+                            f"\n  Archivio: {percorso_completo}"
+                            f"\n  Errore: {e}"
+                        )
                         continue
 
-                    dt_archivio =  get_real_timestamp(info)
-                    if dt_archivio is None:
-                        dt_archivio = datetime(*info.date_time)
-                    dt_finale = ottieni_data_migliore(info.filename, dt_archivio, intestazione)
-                    
-                    with z.open(info) as f_in:
-                        scrivi_file_unico(f_in, info.filename, dt_finale, cartella_dest)
-                    
-                    hash_visti.add(file_hash)
-                    salva_nuovo_hash(percorso_indice, file_hash)
-                    stats['salvati'] += 1
-        except zipfile.BadZipFile as e:
-            print(f"[ATTENZIONE] ZIP corrotto o non valido saltato: {percorso_completo}")
-            print(f"[ERRORE] {percorso_completo} -> Motivo: {e}")
-
+        except (zipfile.BadZipFile, OSError) as e:
+            print(f"\n[ATTENZIONE] ZIP non valido: {percorso_completo}")
+            print(f"[ERRORE] {e}")
+        
     elif nome_lower.endswith(ESTENSIONI_TAR):
         try:
             print(f"Elaborazione TAR: {percorso_completo}")
