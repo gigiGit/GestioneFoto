@@ -3,8 +3,8 @@ import express from 'express';
 const router = express.Router();
 import fs from 'fs';
 import path from 'path';
-import {analisiFromMemory, scanSource,readBatchRecords } from '../services/scanner.js';
-import { readSomeRecords,  updateArchiveRecord } from '../services/scan-archive.js';
+import { scanSource } from '../services/scanner.js';
+import { readSomeRecords,  updateArchiveRecord ,readBatchRecords} from '../services/scan-archive.js';
 const profili = {};
 // API di verifica server
 router.get('/health', (req, res) => {

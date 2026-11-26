@@ -30,8 +30,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
   profilo_roberto = {
     name: "roberto",
@@ -50,8 +49,7 @@ if (hostname === "cesianb-devdb05") {
     filters: null,
     orderby: null,
     sellist: null,
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 
   profilo_patty = {
@@ -72,8 +70,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 
   profilo_paola = {
@@ -94,8 +91,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 } else {
 
@@ -117,8 +113,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
   profilo_roberto = {
     name: "roberto",
@@ -138,8 +133,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 
   profilo_patty = {
@@ -160,8 +154,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 
   profilo_paola = {
@@ -182,8 +175,7 @@ if (hostname === "cesianb-devdb05") {
     orderby: null,
     sellist: null,
     casiParticolari: {},
-    extensions: [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
-      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+    extensions: []
   }
 }
 profilo_giuliano.casiParticolari = {
@@ -227,8 +219,17 @@ profilo_giuliano.casiParticolari = {
 profilo_patty.casiParticolari = {
   "2011-05-14T23:13:00.000Z": ["venezia2011 043.jpg"]
 };
+profilo_giuliano.extensions = [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+profilo_roberto.extensions = [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+profilo_patty.extensions = [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
+profilo_paola.extensions = [".jpg", ".png", ".tif", ".jpeg", ".nef", ".tiff", ".JPG", ".pdf", '.JPG',
+      ".avi", ".mov", ".mpg", ".gif", ".wmv", ".3gp", ".mp4", ".m4v", ".bts", ".MOV", ".bmp"]
 
-await saveProfile(profilo_giuliano);
+
+      await saveProfile(profilo_giuliano);
 await saveProfile(profilo_roberto);
 await saveProfile(profilo_patty);
 await saveProfile(profilo_paola);
