@@ -15,22 +15,15 @@ from PIL import Image, ExifTags
 import subprocess
 from datetime import datetime
 from io import BytesIO
-from PIL import Image, ExifTags
 from pillow_heif import register_heif_opener, open_heif
-
-
-import re
-from datetime import datetime
-
-
-import re
-from pathlib import Path
-from datetime import datetime
+from zoneinfo import ZoneInfo
+from database import inizializza_database, registra_file
+from profili import prepara_casi_particolari
+ZoneInfo("Europe/Rome")
 register_heif_opener()
 
 Image.MAX_IMAGE_PIXELS = 200_000_000
-FILE_DA_IGNORARE = {'thumbs.db', '.ds_store', 'desktop.ini', 'indice_hash.txt'}
-ESTENSIONI_DA_IGNORARE = {'.ctg', '.tmp', '.ini', '.db', '.json'}
+FILE_DA_IGNORARE = {'thumbs.db', '.ds_store', 'desktop.ini', 'indice_hash.txt','database.db'}
 ESTENSIONI_IMMAGINI = {".heic",".heif",".jpg",        ".png",        ".tif",        ".jpeg",        ".nef",        ".tiff",        ".JPG",        ".pdf",        ".JPG",        ".avi",        ".mov",        ".mpg",        ".gif",        ".wmv",        ".3gp",        ".mp4",        ".m4v",        ".bts",        ".MOV",        ".bmp"}
 ESTENSIONI_TAR = ('.tar', '.tar.gz', '.tgz')
 
@@ -104,21 +97,6 @@ def estrai_data_video(nome_file):
 
     return None
 
-def prepara_casi_particolari(casi):
-    risultato = {}
-
-    for data_iso, nomi_file in casi.items():
-        data = datetime.fromisoformat(
-            data_iso.replace("Z", "+00:00")
-        ).replace(tzinfo=None)
-
-        for nome in nomi_file:
-            risultato[nome.lower()] = data
-
-    return risultato
-
-
-
 def carica_configurazione_json(percorso_config):
     config_path = Path(percorso_config)
     with config_path.open("r", encoding="utf-8") as f:
@@ -169,7 +147,7 @@ def calcola_solo_hash_file(percorso_file):
             hasher.update(chunk)
     return hasher.hexdigest()
 
-def sincronizza_indice_destinazione(cartella_dest, percorso_indice,reload):
+def sincronizza_indice_destinazione(cartella_dest, percorso_indice,reload,conn):
     hash_visti = set()
     if os.path.exists(percorso_indice):
         with open(percorso_indice, "r", encoding="utf-8") as f:
@@ -185,7 +163,8 @@ def sincronizza_indice_destinazione(cartella_dest, percorso_indice,reload):
                         continue
                     percorso_completo = os.path.join(root, file)
                     file_hash = calcola_solo_hash_file(percorso_completo)
-                    
+                    registra_file(conn,file_hash,percorso_completo,None)
+    
                     if file_hash not in hash_visti:
                         hash_visti.add(file_hash)
                         f_indice.write(file_hash + "\n")
@@ -201,23 +180,32 @@ def salva_nuovo_hash(percorso_indice, file_hash):
     with open(percorso_indice, "a", encoding="utf-8") as f:
         f.write(file_hash + "\n")
 
+import re
+from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
+from datetime import datetime
 
 def estrai_data_da_timestamp_nome(nome_file):
     nome = Path(nome_file).stem
 
-    # 13 cifre oppure 23 cifre con timestamp iniziale
-    if re.fullmatch(r"\d{13}|\d{23}", nome):
-        try:
-            timestamp = int(nome[:13]) / 1000
-            return datetime.fromtimestamp(timestamp)
-        except (ValueError, OSError, OverflowError):
-            pass
+    match = re.match(r"^(\d{13})", nome)
 
-    return None
+    if not match:
+        return None
 
-from PIL import Image, ExifTags
-from io import BytesIO
+    try:
+        timestamp = int(match.group(1)) / 1000
+
+        return datetime.fromtimestamp(timestamp)
+
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
+
+
 
 def estrai_data_exif(dati_bytes):
     try:
@@ -310,8 +298,8 @@ def estrai_data_da_nome(nome_file):
             pass
     return None
 
-
-def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes,CASI_PARTICOLARI):
+CASI_PARTICOLARI = {}
+def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes):
     nome = Path(nome_file).name.lower()
     if CASI_PARTICOLARI and nome in CASI_PARTICOLARI:
         return CASI_PARTICOLARI[nome]
@@ -374,10 +362,12 @@ def scrivi_file_unico(stream, nome_file, dt, profilo):
     cartella_data.mkdir(parents=True, exist_ok=True)
 
     percorso_finale = cartella_data / Path(nome_file).name
+    if percorso_finale.exists():
+        percorso_finale =  Path(cartella_dest)/"copie" / percorso_relativo / Path(nome_file).name
+        percorso_finale.parent.mkdir(parents=True, exist_ok=True)
 
     # Evita di sovrascrivere file con lo stesso nome
     contatore = 1
-
     while percorso_finale.exists():
         stem = Path(nome_file).stem
         suffix = Path(nome_file).suffix
@@ -405,7 +395,7 @@ def scrivi_file_unico(stream, nome_file, dt, profilo):
    
 def da_ignorare(nome_file):
     p = Path(nome_file)
-    return p.name.lower() in FILE_DA_IGNORARE or p.suffix.lower() in ESTENSIONI_DA_IGNORARE
+    return p.name.lower() in FILE_DA_IGNORARE or p.suffix.lower() not in ESTENSIONI_IMMAGINI
 def get_real_timestamp(info):
   # Cerca il campo extra UNIX timestamp (Header ID 0x5455)
   extra = info.extra
@@ -419,10 +409,9 @@ def get_real_timestamp(info):
         return datetime.fromtimestamp(mtime, tz=timezone.utc)
     pos += 4 + data_size
 
-def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_dest, stats, profilo):
+def processa_elemento(percorso_completo, hash_visti, percorso_indice, conn, stats, profilo):
     nome_file = os.path.basename(percorso_completo)
     nome_lower = nome_file.lower()
-    CASI_PARTICOLARI = prepara_casi_particolari(  profilo.get("casiParticolari", {}))
     if nome_lower.endswith(".zip"):
         try:
             with zipfile.ZipFile(percorso_completo, 'r') as z:
@@ -449,8 +438,7 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
                         dt_finale = ottieni_data_migliore(
                             info.filename,
                             dt_archivio,
-                            intestazione,
-                            CASI_PARTICOLARI
+                            intestazione
                         )
 
                         # Seconda lettura: copia del file
@@ -489,17 +477,18 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
                     if not f_in:
                         continue
                     file_hash, intestazione = calcola_hash_e_intestazione(f_in)
+                    registra_file(conn,file_hash,Path(percorso_completo)/member.path,None)
                     f_in.close()
 
                     if file_hash in hash_visti:
                         stats['duplicati'] += 1
                         continue
 
-                    dt_finale = ottieni_data_migliore(member.name, member.mtime, intestazione,profilo)
+                    dt_finale = ottieni_data_migliore(member.name, member.mtime, intestazione)
                     
                     f_in = t.extractfile(member)
                     if f_in:
-                        scrivi_file_unico(f_in, member.name, dt_finale, profilo)
+                        scrivi_file_unico(f_in, member.name, dt_finale,profilo)
                         f_in.close()
                         hash_visti.add(file_hash)
                         salva_nuovo_hash(percorso_indice, file_hash)
@@ -512,16 +501,17 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
             return
         with open(percorso_completo, "rb") as f_in:
             file_hash, intestazione = calcola_hash_e_intestazione(f_in)
-        
+            registra_file(conn,file_hash,percorso_completo,None)
+
         if file_hash in hash_visti:
             stats['duplicati'] += 1
             return
 
         dt_fs = os.path.getmtime(percorso_completo)
-        dt_finale = ottieni_data_migliore(nome_file, dt_fs, intestazione,CASI_PARTICOLARI)
+        dt_finale = ottieni_data_migliore(nome_file, dt_fs, intestazione)
 
         with open(percorso_completo, "rb") as f_in:
-            scrivi_file_unico(f_in, nome_file, dt_finale, profilo)
+            scrivi_file_unico(f_in, nome_file, dt_finale,profilo)
         
         hash_visti.add(file_hash)
         salva_nuovo_hash(percorso_indice, file_hash)
@@ -529,21 +519,27 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
 
 
 def elabora_tutto(profilo):
-    CASI_PARTICOLARI = prepara_casi_particolari(  profilo.get("casiParticolari", {}))
+    
     reload=profilo.get("reload", False)
     sorgenti = profilo.get("sourceFolders", [])
     cartella_destinazione = profilo.get("destDir")
     if not cartella_destinazione or not sorgenti:
         raise ValueError("Configurazione JSON incompleta")
 
+    percorso_db = os.path.join(cartella_destinazione, "database.db")
+
     print("Sorgenti:", sorgenti)
     print("Destinazione:", cartella_destinazione)
 
     Path(cartella_destinazione).mkdir(parents=True, exist_ok=True)
+    conn = inizializza_database(percorso_db)
+
     percorso_indice = os.path.join(
         cartella_destinazione, "indice_hash.txt"
     )
-    hash_visti = sincronizza_indice_destinazione(cartella_destinazione, percorso_indice,reload )
+    prepara_casi_particolari(profilo.get("casiParticolari", {}), CASI_PARTICOLARI)
+    print("Casi particolari preparati", CASI_PARTICOLARI)
+    hash_visti = sincronizza_indice_destinazione(cartella_destinazione, percorso_indice,reload ,conn)
 
     stats = {'salvati': 0, 'duplicati': 0}
 
@@ -559,16 +555,16 @@ def elabora_tutto(profilo):
         if os.path.isfile(sorgente):
             processa_elemento(
                 sorgente, hash_visti, percorso_indice,
-                cartella_destinazione, stats, profilo
+                conn, stats, profilo
             )
         else:
             for root, _, files in os.walk(sorgente):
-                print(f"Scansione della cartella: {root}", end="")
+                print(f"Scansione della cartella: {root}")
                 for file in files:
                     percorso_completo = os.path.join(root, file)
                     processa_elemento(
                         percorso_completo, hash_visti,
-                        percorso_indice, cartella_destinazione, stats, profilo
+                        percorso_indice, conn, stats, profilo
                     )
 
     print(
@@ -578,78 +574,5 @@ def elabora_tutto(profilo):
 
 
 
-import json
-from pathlib import Path
 
-
-CARTELLA_PROFILI = Path("profili")
-
-
-import tkinter as tk
-from tkinter import ttk
-
-def scegli_profilo():
-    profili = carica_profili()
-
-    finestra = tk.Tk()
-    finestra.title("GestioneFoto3")
-    finestra.geometry("420x230")
-    finestra.resizable(False, False)
-
-    risultato = {"profilo": None}
-
-    ttk.Label(
-        finestra,
-        text="Seleziona il profilo di archiviazione",
-        font=("Segoe UI", 12, "bold")
-    ).pack(pady=20)
-
-    selezione = tk.StringVar()
-
-    combo = ttk.Combobox(
-        finestra,
-        textvariable=selezione,
-        values=list(profili.keys()),
-        state="readonly",
-        width=35
-    )
-    combo.pack(pady=10)
-
-    if profili:
-        combo.current(0)
-
-    def conferma():
-        nome = selezione.get()
-        if nome:
-            risultato["profilo"] = profili[nome]
-            risultato["nome"] = nome
-            finestra.destroy()
-
-    ttk.Button(
-        finestra,
-        text="Avvia",
-        command=conferma
-    ).pack(pady=20)
-
-    finestra.mainloop()
-
-    return risultato
-
-
-def carica_profili():
-    profili = {}
-
-    CARTELLA_PROFILI.mkdir(parents=True, exist_ok=True)
-
-    for file in sorted(CARTELLA_PROFILI.glob("*.json")):
-        try:
-            with open(file, "r", encoding="utf-8") as f:
-                configurazione = json.load(f)
-
-            profili[file.stem] = configurazione
-
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"Errore nel profilo {file.name}: {e}")
-
-    return profili
 

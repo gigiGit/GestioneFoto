@@ -4,3 +4,4 @@ winget install -e --id Gyan.FFmpeg --silent --accept-package-agreements --accept
 python -m pip install --upgrade pip
 python -m pip install pillow
 python -m pip install pillow-heif
+python -m pip install tzdata

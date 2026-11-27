@@ -1,7 +1,7 @@
 from pathlib import Path
 
+from profili import scegli_profilo
 
-from libreria import scegli_profilo, elabora_tutto
 
 scelta = scegli_profilo()
 
@@ -15,4 +15,7 @@ print("Profilo:", profilo)
 #profilo["reload"] = True
 print("Configurazione caricata correttamente:",profilo.get("name"))
 print("Rilettura Destinazione:", profilo.get("reload",False))
+
+
+from libreria import elabora_tutto
 elabora_tutto(profilo)
