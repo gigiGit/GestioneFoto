@@ -16,6 +16,8 @@ import subprocess
 from datetime import datetime
 from io import BytesIO
 from PIL import Image, ExifTags
+from pillow_heif import register_heif_opener, open_heif
+
 
 import re
 from datetime import datetime
@@ -24,11 +26,12 @@ from datetime import datetime
 import re
 from pathlib import Path
 from datetime import datetime
+register_heif_opener()
 
 Image.MAX_IMAGE_PIXELS = 200_000_000
 FILE_DA_IGNORARE = {'thumbs.db', '.ds_store', 'desktop.ini', 'indice_hash.txt'}
 ESTENSIONI_DA_IGNORARE = {'.ctg', '.tmp', '.ini', '.db', '.json'}
-#ESTENSIONI_IMMAGINI = {'.jpg', '.jpeg', '.tiff', '.webp', '.dng', '.nef', '.cr2', '.arw'}
+ESTENSIONI_IMMAGINI = {".heic",".heif",".jpg",        ".png",        ".tif",        ".jpeg",        ".nef",        ".tiff",        ".JPG",        ".pdf",        ".JPG",        ".avi",        ".mov",        ".mpg",        ".gif",        ".wmv",        ".3gp",        ".mp4",        ".m4v",        ".bts",        ".MOV",        ".bmp"}
 ESTENSIONI_TAR = ('.tar', '.tar.gz', '.tgz')
 
 FFPROBE = r"C:\tools\ffmpeg\bin\ffprobe.exe"
@@ -171,7 +174,7 @@ def sincronizza_indice_destinazione(cartella_dest, percorso_indice,reload):
     if os.path.exists(percorso_indice):
         with open(percorso_indice, "r", encoding="utf-8") as f:
             hash_visti = set(line.strip() for line in f if line.strip())
-    if reload:
+    if hash_visti.__len__() == 0 or reload:
         nuovi_indicizzati = 0
         print("Verifica dei file già presenti nella cartella di destinazione...")
         
@@ -187,7 +190,7 @@ def sincronizza_indice_destinazione(cartella_dest, percorso_indice,reload):
                         hash_visti.add(file_hash)
                         f_indice.write(file_hash + "\n")
                         nuovi_indicizzati += 1
-                        print(f"\rNuovo file indicizzato: {percorso_completo}", end="", flush=True)
+                        print(f"\rNuovo file indicizzato: {percorso_completo}                            ", end="", flush=True)
 
         if nuovi_indicizzati > 0:
             print(f"Aggiunti all'indice {nuovi_indicizzati} file preesistenti trovati nella destinazione.")
@@ -213,7 +216,51 @@ def estrai_data_da_timestamp_nome(nome_file):
 
     return None
 
+from PIL import Image, ExifTags
+from io import BytesIO
+
 def estrai_data_exif(dati_bytes):
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Tag data larger than file.*",
+                category=UserWarning
+            )
+
+            with Image.open(BytesIO(dati_bytes)) as img:
+                exif = img.getexif()
+
+                if not exif:
+                    return None
+
+                exif_ifd = exif.get_ifd(ExifTags.IFD.Exif)
+
+                candidati = [
+                    exif_ifd.get(36867),
+                    exif_ifd.get(36868),
+                    exif.get(306)
+                ]
+
+                for valore in candidati:
+                    if valore and isinstance(valore, str):
+                        pulito = valore.replace("\x00", "").strip()[:19]
+
+                        try:
+                            return datetime.strptime(
+                                pulito, "%Y:%m:%d %H:%M:%S"
+                            )
+                        except ValueError:
+                            continue
+
+    except Exception as e:
+        print(f"[ATTENZIONE] Lettura EXIF fallita: {e}")
+
+    return None
+
+
+
+def estrai_data_exif_old(dati_bytes):
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -266,7 +313,7 @@ def estrai_data_da_nome(nome_file):
 
 def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes,CASI_PARTICOLARI):
     nome = Path(nome_file).name.lower()
-    if nome in CASI_PARTICOLARI:
+    if CASI_PARTICOLARI and nome in CASI_PARTICOLARI:
         return CASI_PARTICOLARI[nome]
     
     ext = Path(nome_file).suffix.lower()
@@ -281,6 +328,12 @@ def ottieni_data_migliore(nome_file, timestamp_fallback, primi_bytes,CASI_PARTIC
         dt_exif = estrai_data_exif(primi_bytes)
         if dt_exif:
             return dt_exif
+        
+    # 2.1 forse è un HEIC
+    if ext == ".heic" or ext == ".heif" :
+        heif = open_heif(nome_file)
+        print(heif.info)
+        
     # 3. Data ricavata dal nome del file
     dt_nome = estrai_data_da_nome(Path(nome_file).name)
     if dt_nome:
@@ -311,10 +364,12 @@ def calcola_hash_e_intestazione(stream):
 
 
 
-def scrivi_file_unico(stream, nome_file, dt, cartella_dest):
+def scrivi_file_unico(stream, nome_file, dt, profilo):
     # Crea il percorso usando il formato definito nel JSON
+    FORMATO_CARTELLE = profilo.get("formato", "%Y/%m/%d")
+    cartella_dest = profilo.get("destDir")
     percorso_relativo = dt.strftime(FORMATO_CARTELLE)
-
+    
     cartella_data = Path(cartella_dest) / percorso_relativo
     cartella_data.mkdir(parents=True, exist_ok=True)
 
@@ -364,10 +419,10 @@ def get_real_timestamp(info):
         return datetime.fromtimestamp(mtime, tz=timezone.utc)
     pos += 4 + data_size
 
-def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_dest, stats, CASI_PARTICOLARI):
+def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_dest, stats, profilo):
     nome_file = os.path.basename(percorso_completo)
     nome_lower = nome_file.lower()
-
+    CASI_PARTICOLARI = prepara_casi_particolari(  profilo.get("casiParticolari", {}))
     if nome_lower.endswith(".zip"):
         try:
             with zipfile.ZipFile(percorso_completo, 'r') as z:
@@ -404,7 +459,7 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
                                 f_in,
                                 info.filename,
                                 dt_finale,
-                                cartella_dest
+                                profilo
                             )
 
                         hash_visti.add(file_hash)
@@ -440,11 +495,11 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
                         stats['duplicati'] += 1
                         continue
 
-                    dt_finale = ottieni_data_migliore(member.name, member.mtime, intestazione,CASI_PARTICOLARI)
+                    dt_finale = ottieni_data_migliore(member.name, member.mtime, intestazione,profilo)
                     
                     f_in = t.extractfile(member)
                     if f_in:
-                        scrivi_file_unico(f_in, member.name, dt_finale, cartella_dest)
+                        scrivi_file_unico(f_in, member.name, dt_finale, profilo)
                         f_in.close()
                         hash_visti.add(file_hash)
                         salva_nuovo_hash(percorso_indice, file_hash)
@@ -466,7 +521,7 @@ def processa_elemento(percorso_completo, hash_visti, percorso_indice, cartella_d
         dt_finale = ottieni_data_migliore(nome_file, dt_fs, intestazione,CASI_PARTICOLARI)
 
         with open(percorso_completo, "rb") as f_in:
-            scrivi_file_unico(f_in, nome_file, dt_finale, cartella_dest)
+            scrivi_file_unico(f_in, nome_file, dt_finale, profilo)
         
         hash_visti.add(file_hash)
         salva_nuovo_hash(percorso_indice, file_hash)
@@ -504,15 +559,16 @@ def elabora_tutto(profilo):
         if os.path.isfile(sorgente):
             processa_elemento(
                 sorgente, hash_visti, percorso_indice,
-                cartella_destinazione, stats, CASI_PARTICOLARI
+                cartella_destinazione, stats, profilo
             )
         else:
             for root, _, files in os.walk(sorgente):
+                print(f"Scansione della cartella: {root}", end="")
                 for file in files:
                     percorso_completo = os.path.join(root, file)
                     processa_elemento(
                         percorso_completo, hash_visti,
-                        percorso_indice, cartella_destinazione, stats, CASI_PARTICOLARI
+                        percorso_indice, cartella_destinazione, stats, profilo
                     )
 
     print(
@@ -520,4 +576,80 @@ def elabora_tutto(profilo):
         f"| Duplicati ignorati: {stats['duplicati']}"
     )
 
+
+
+import json
+from pathlib import Path
+
+
+CARTELLA_PROFILI = Path("profili")
+
+
+import tkinter as tk
+from tkinter import ttk
+
+def scegli_profilo():
+    profili = carica_profili()
+
+    finestra = tk.Tk()
+    finestra.title("GestioneFoto3")
+    finestra.geometry("420x230")
+    finestra.resizable(False, False)
+
+    risultato = {"profilo": None}
+
+    ttk.Label(
+        finestra,
+        text="Seleziona il profilo di archiviazione",
+        font=("Segoe UI", 12, "bold")
+    ).pack(pady=20)
+
+    selezione = tk.StringVar()
+
+    combo = ttk.Combobox(
+        finestra,
+        textvariable=selezione,
+        values=list(profili.keys()),
+        state="readonly",
+        width=35
+    )
+    combo.pack(pady=10)
+
+    if profili:
+        combo.current(0)
+
+    def conferma():
+        nome = selezione.get()
+        if nome:
+            risultato["profilo"] = profili[nome]
+            risultato["nome"] = nome
+            finestra.destroy()
+
+    ttk.Button(
+        finestra,
+        text="Avvia",
+        command=conferma
+    ).pack(pady=20)
+
+    finestra.mainloop()
+
+    return risultato
+
+
+def carica_profili():
+    profili = {}
+
+    CARTELLA_PROFILI.mkdir(parents=True, exist_ok=True)
+
+    for file in sorted(CARTELLA_PROFILI.glob("*.json")):
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                configurazione = json.load(f)
+
+            profili[file.stem] = configurazione
+
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Errore nel profilo {file.name}: {e}")
+
+    return profili
 

@@ -229,4 +229,16 @@ for sorgente in ["L:\\"]:
                 percorso_file = os.path.join(root, file)
                 visitati += 1
             print(f"Totale file visitati: {visitati}")
-elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\27\\MOVIE(10).mp4", datetime.now())
+#elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\27\\MOVIE(10).mp4", datetime.now())
+from pillow_heif import open_heif
+from pillow_heif import register_heif_opener
+register_heif_opener()
+#heif = open_heif("C:\\ArchivioFoto\\Lollo\\2026\\11\\27\\IMG_3730(1).HEIC")
+
+#print(heif.info)
+
+from pathlib import Path
+from libreria import processa_elemento
+percorso = r"C:\ArchivioFoto\Lollo\2026\11\27\IMG_3730(1).HEIC"
+#ottieni_data_migliore(percorso, datetime.now(), None,None)
+processa_elemento(percorso, [], "C:\\tmp", "C:\\tmp", None, None)
