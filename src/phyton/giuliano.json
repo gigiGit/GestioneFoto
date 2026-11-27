@@ -2,8 +2,7 @@
     "name": "giuliano",
     "archive": "giuliano.db",
     "sourceFolders": [
-        "J:\\TarPhoto\\Giuliano",
-        "J:\\TarPhoto\\Famiglia"
+        "E:\\" 
     ],
     "destDir": "C:\\ArchivioFoto\\Giuliano",
     "scanDir": "Scan",

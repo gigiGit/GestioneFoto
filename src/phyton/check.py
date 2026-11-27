@@ -49,7 +49,7 @@ def estrai_data_video(nome_file):
 
         risultato = subprocess.run(
             [
-                FFPROBE,
+                "ffprobe",
                 "-v", "quiet",
                 "-show_format",
                 "-show_streams",
@@ -217,4 +217,16 @@ def elabora_file(nome_file, timestamp_fallback):
     print("Data migliore per", nome_file, ":", data_migliore)
     print("Hash file per", nome_file, ":", file_hash)
     return
-elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\26\\a.0003.mp4", datetime.now())
+for sorgente in ["L:\\"]:
+        if not os.path.exists(sorgente):
+            print(f"[SALTATO] Percorso non trovato: {sorgente}")
+            continue
+        print(f"Scansione della cartella: {sorgente}")
+        visitati=0
+        for root, dirs, files in os.walk(sorgente):
+            print(f"Scansione della cartella: {root}",end="")
+            for file in files:
+                percorso_file = os.path.join(root, file)
+                visitati += 1
+            print(f"Totale file visitati: {visitati}")
+elabora_file("C:\\ArchivioFoto\\Giuliano\\2026\\11\\27\\MOVIE(10).mp4", datetime.now())
